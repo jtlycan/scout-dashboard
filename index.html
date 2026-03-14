@@ -449,6 +449,11 @@ input[type=range]{flex:1;accent-color:var(--amber);height:4px;cursor:pointer}
     <div class="stat-value amber" id="s-top">—</div>
     <div class="stat-sub" id="s-top-addr">No properties yet</div>
   </div>
+  <div class="stat-card">
+    <div class="stat-label">Analysis spend</div>
+    <div class="stat-value" id="s-cost">$0.00</div>
+    <div class="stat-sub">Cumulative API cost</div>
+  </div>
 </div>
 
 <!-- FILTER BAR -->
@@ -638,6 +643,8 @@ function updateStats() {
   document.getElementById('s-top').textContent = topProp ? topProp.score : '—';
   document.getElementById('s-top-addr').textContent = topProp ? (topProp.address||'').split(',')[0] : 'No properties yet';
   document.getElementById('grid-count').textContent = '';
+  const totalCost = parseFloat(localStorage.getItem('scout_total_cost') || '0');
+  document.getElementById('s-cost').textContent = '$' + totalCost.toFixed(4);
 }
 
 async function geocodeAddress(address) {
@@ -853,6 +860,7 @@ function showResultPreview(d) {
       </div>
       ${tagHTML ? `<div class="rcp-tags">${tagHTML}</div>` : ''}
       <div class="rcp-reasoning">${d.reasoning||''}</div>
+      <div style="font-size:11px;color:var(--ink3);margin-top:6px;text-align:right;">Analysis cost: <b style="color:var(--ink)">$${(d._cost||0).toFixed(4)}</b></div>
     </div>
   `;
 
@@ -866,6 +874,7 @@ function showResultPreview(d) {
 async function confirmAddProperty() {
   if (!_analyzedData) return;
   const notes = document.getElementById('f-notes').value.trim();
+  const cost = _analyzedData._cost || 0;
   const newProp = {
     id: 'p_' + Date.now(),
     status: 'neutral',
@@ -886,6 +895,11 @@ async function confirmAddProperty() {
   };
   await savePropToDb(newProp);
   props.unshift(newProp);
+
+  // Track cumulative cost in localStorage
+  const prevCost = parseFloat(localStorage.getItem('scout_total_cost') || '0');
+  localStorage.setItem('scout_total_cost', (prevCost + cost).toFixed(6));
+
   closeModal();
   render();
   const geo = await geocodeAddress(newProp.address);
