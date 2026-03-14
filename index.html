@@ -501,6 +501,7 @@ input[type=range]{flex:1;accent-color:var(--amber);height:4px;cursor:pointer}
 </div>
 
 <script>
+document.addEventListener("DOMContentLoaded", function() {
 let props = JSON.parse(localStorage.getItem('scout_v2') || '[]');
 let filter = 'all', sort = 'score', editId = null;
 let map = null, markers = {};
@@ -799,7 +800,7 @@ async function saveProperty() {
 
 document.getElementById('modal').addEventListener('click',function(e){if(e.target===this)closeModal();});
 render();
-window.addEventListener("load", function() { render(); });
+}); // end DOMContentLoaded
 </script>
 </body>
 </html>
