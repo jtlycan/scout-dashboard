@@ -501,20 +501,49 @@ input[type=range]{flex:1;accent-color:var(--amber);height:4px;cursor:pointer}
 </div>
 
 <script>
-let props = JSON.parse(localStorage.getItem('scout_v2') || '[]');
+const SUPA_URL = 'https://uqxpktitqgdlvshfczfe.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxeHBrdGl0cWdkbHZzaGZjemZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1MTk4NDEsImV4cCI6MjA4OTA5NTg0MX0.KuujfIOm3heTjPN2ufqlcMno2TQClwJjMIJ9yeps-SA';
+const HEADERS = { 'Content-Type': 'application/json', 'apikey': SUPA_KEY, 'Authorization': `Bearer ${SUPA_KEY}` };
+
+let props = [];
 let filter = 'all', sort = 'score', editId = null;
 let map = null, markers = {};
 
-// Migrate old data if needed
-if (props.length && !props[0].lat) {
-  props.forEach(p => { p.lat = null; p.lng = null; });
+async function loadProps() {
+  try {
+    const r = await fetch(`${SUPA_URL}/rest/v1/properties?order=added.desc`, { headers: HEADERS });
+    props = await r.json();
+    if (!Array.isArray(props)) props = [];
+  } catch(e) { props = []; }
+  render();
 }
 
-document.getElementById('tw').addEventListener('change', function() {
-  document.getElementById('wdrow').style.display = this.checked ? 'grid' : 'none';
-});
+async function save() {
+  // No-op — saves happen individually in add/update/delete
+}
 
-function save() { localStorage.setItem('scout_v2', JSON.stringify(props)); }
+async function savePropToDb(p) {
+  await fetch(`${SUPA_URL}/rest/v1/properties`, {
+    method: 'POST',
+    headers: { ...HEADERS, 'Prefer': 'resolution=merge-duplicates' },
+    body: JSON.stringify(p)
+  });
+}
+
+async function updatePropInDb(p) {
+  await fetch(`${SUPA_URL}/rest/v1/properties?id=eq.${p.id}`, {
+    method: 'PATCH',
+    headers: HEADERS,
+    body: JSON.stringify(p)
+  });
+}
+
+async function deletePropFromDb(id) {
+  await fetch(`${SUPA_URL}/rest/v1/properties?id=eq.${id}`, {
+    method: 'DELETE',
+    headers: HEADERS
+  });
+}
 
 function scoreBg(s) {
   if (s >= 8) return '#2d6a4a';
@@ -677,7 +706,6 @@ function updateMap() {
 }
 
 function render() {
-  props = JSON.parse(localStorage.getItem('scout_v2') || '[]');
   updateStats();
   updateMap();
   const list = getList();
@@ -699,12 +727,19 @@ function setFilter(f, el) {
 function setSort(v) { sort=v; render(); }
 function setStatus(id, s) {
   const p=props.find(x=>x.id===id); if(!p) return;
-  p.status=p.status===s?'neutral':s; save(); render();
+  p.status=p.status===s?'neutral':s;
+  updatePropInDb({id: p.id, status: p.status});
+  render();
 }
-function saveNote(id, v) { const p=props.find(x=>x.id===id); if(p){p.notes=v;save();} }
+function saveNote(id, v) {
+  const p=props.find(x=>x.id===id);
+  if(p){ p.notes=v; updatePropInDb({id: p.id, notes: v}); }
+}
 function deleteProp(id) {
   if(!confirm('Remove this property from Scout?')) return;
-  props=props.filter(p=>p.id!==id); save(); render();
+  props=props.filter(p=>p.id!==id);
+  deletePropFromDb(id);
+  render();
 }
 
 // Modal state
@@ -900,16 +935,21 @@ async function confirmAddProperty() {
     reasoning: _analyzedData.reasoning,
     notes,
   };
+  await savePropToDb(newProp);
   props.unshift(newProp);
-  closeModal(); save(); render();
+  closeModal();
+  render();
   const geo = await geocodeAddress(newProp.address);
-  if (geo) { newProp.lat = geo.lat; newProp.lng = geo.lng; save(); render(); }
+  if (geo) {
+    newProp.lat = geo.lat; newProp.lng = geo.lng;
+    updatePropInDb({ id: newProp.id, lat: geo.lat, lng: geo.lng });
+    render();
+  }
 }
 
 document.getElementById('modal').addEventListener('click',function(e){if(e.target===this)closeModal();});
-// Allow Enter key to trigger Analyze
 document.getElementById('f-url').addEventListener('keydown',function(e){if(e.key==='Enter')handleModalPrimary();});
-render();
+loadProps();
 </script>
 </body>
 </html>
