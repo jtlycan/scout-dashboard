@@ -787,71 +787,20 @@ async function analyzeUrl() {
   document.getElementById('modal-loading-view').style.display = 'block';
   document.getElementById('modal-footer').style.display = 'none';
 
-  const SYSTEM_PROMPT = `You are Scout, an AI real estate analyst helping identify DIY renovation investment properties in the Denver metro and mountain communities. 
-
-The investment strategy is: Buy → live in while renovating (~15hrs/week, ~1 year) → hold as long-term rental → repeat.
-
-Sweet spot: Cosmetically rough but structurally sound. Too bad for a family to move in as-is, but not so gutted a professional flipper would want it.
-
-Score properties 1-10:
-- 9-10: Near-perfect. Cosmetically wrecked, structurally sound, high upside
-- 7-8: Strong candidate
-- 5-6: Borderline
-- 3-4: Marginal  
-- 1-2: Doesn't fit the strategy
-
-Tags (select all that apply):
-- grandma_home: Dated but solid, original owner vibes, cosmetic time capsule
-- adu_potential: Garage, outbuilding, or lot that could support an ADU
-- basement_bonus: Finished or finishable basement adds significant value/income
-- weird_property: Unusual layout, zoning, multiple structures, or unique opportunity
-- uninhabitable: Needs so much work it can't be lived in immediately
-- multi_family: Duplex, triplex, or multi-unit potential
-
-You must respond with ONLY valid JSON, no other text. Extract all listing details from the URL provided.
-
-Return this exact structure:
-{
-  "address": "full street address",
-  "price": "$XXX,XXX",
-  "sqft": "X,XXX",
-  "dom": 14,
-  "price_history": "Reduced $10k 2 weeks ago or null",
-  "photo": "primary photo URL or null",
-  "score": 8,
-  "tags": ["grandma_home", "adu_potential"],
-  "weird_desc": "one sentence explaining what makes it weird, or null",
-  "reasoning": "2-3 sentence assessment explaining the score based on the investment strategy"
-}`;
-
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch(`${SUPA_URL}/functions/v1/analyze-property`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-        system: SYSTEM_PROMPT,
-        messages: [{ role: 'user', content: `Analyze this listing and return JSON: ${url}` }]
-      })
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPA_KEY}`
+      },
+      body: JSON.stringify({ url })
     });
 
     const data = await response.json();
+    if (data.error) throw new Error(data.error);
 
-    // Extract text from response (may include tool use blocks)
-    let text = '';
-    if (data.content) {
-      for (const block of data.content) {
-        if (block.type === 'text') text += block.text;
-      }
-    }
-
-    // Parse JSON from response
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('No valid JSON in response');
-    
-    _analyzedData = JSON.parse(jsonMatch[0]);
+    _analyzedData = data;
     _analyzedData.url = url;
 
     showResultPreview(_analyzedData);
