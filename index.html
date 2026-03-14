@@ -56,21 +56,20 @@ body{background:var(--cream);color:var(--ink);font-family:var(--font-body);font-
   width:8px;height:8px;border-radius:50%;background:var(--amber-light);
   display:inline-block;margin-bottom:1px;
 }
-.header-center{display:flex;gap:6px;align-items:center}
-.hstat{
-  font-size:11px;color:rgba(255,255,255,0.5);
-  background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.1);
-  border-radius:20px;padding:3px 12px;
-  display:flex;align-items:center;gap:6px;
-}
-.hstat b{color:#fff;font-weight:500}
-.hstat-dot{width:6px;height:6px;border-radius:50%}
 .add-btn{
   background:var(--amber);color:#fff;border:none;border-radius:var(--radius);
   font-family:var(--font-body);font-size:12px;font-weight:500;padding:8px 18px;
   cursor:pointer;transition:background 0.15s;letter-spacing:0.02em;
 }
 .add-btn:hover{background:var(--amber-light)}
+.header-url-bar{flex:1;padding:0 20px;}
+.header-url-input{
+  width:100%;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);
+  border-radius:var(--radius);color:#fff;font-family:var(--font-body);font-size:12px;
+  padding:8px 14px;outline:none;transition:border-color 0.15s;
+}
+.header-url-input::placeholder{color:rgba(255,255,255,0.35)}
+.header-url-input:focus{border-color:var(--amber);background:rgba(255,255,255,0.12)}
 
 /* ── STATS BAR ── */
 .stats-bar{
@@ -423,13 +422,10 @@ input[type=range]{flex:1;accent-color:var(--amber);height:4px;cursor:pointer}
 <!-- HEADER -->
 <div class="header">
   <div class="logo"><div class="logo-dot"></div>Scout</div>
-  <div class="header-center">
-    <div class="hstat"><div class="hstat-dot" style="background:#60a5fa"></div>Denver Metro</div>
-    <div class="hstat"><div class="hstat-dot" style="background:#34d399"></div>Mountains</div>
-    <div class="hstat"><b id="h-total">0</b>&nbsp;tracked</div>
-    <div class="hstat"><b id="h-saved">0</b>&nbsp;saved</div>
+  <div class="header-url-bar">
+    <input class="header-url-input" id="header-url" placeholder="Paste a Zillow or Redfin URL to analyze..." onkeydown="if(event.key==='Enter')openModalWithUrl()"/>
   </div>
-  <button class="add-btn" onclick="openModal()">+ Add Property</button>
+  <button class="add-btn" onclick="openModalWithUrl()">+ Add Property</button>
 </div>
 
 <!-- STATS BAR -->
@@ -634,8 +630,6 @@ function updateStats() {
   const scores = props.map(p=>p.score).filter(Boolean);
   const avg = scores.length ? (scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1) : '—';
   const topProp = props.filter(p=>p.score).sort((a,b)=>b.score-a.score)[0];
-  document.getElementById('h-total').textContent = total;
-  document.getElementById('h-saved').textContent = saved;
   document.getElementById('s-total').textContent = total;
 
   document.getElementById('s-saved').textContent = saved;
@@ -751,6 +745,28 @@ function deleteProp(id) {
 
 // Modal state
 let _analyzedData = null;
+
+function openModalWithUrl() {
+  const url = document.getElementById('header-url').value.trim();
+  editId = null;
+  _analyzedData = null;
+  document.getElementById('modal-title').textContent = 'Add Property';
+  document.getElementById('f-notes').value = '';
+  document.getElementById('analyze-error').style.display = 'none';
+  document.getElementById('modal-url-view').style.display = 'block';
+  document.getElementById('modal-loading-view').style.display = 'none';
+  document.getElementById('modal-result-view').style.display = 'none';
+  document.getElementById('modal-footer').style.display = 'flex';
+  document.getElementById('modal-primary-btn').textContent = 'Analyze';
+  document.getElementById('modal').classList.add('open');
+  if (url) {
+    document.getElementById('f-url').value = url;
+    document.getElementById('header-url').value = '';
+    setTimeout(() => analyzeUrl(), 100);
+  } else {
+    setTimeout(() => document.getElementById('f-url').focus(), 100);
+  }
+}
 
 function openModal() {
   editId = null;
