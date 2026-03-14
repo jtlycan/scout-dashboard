@@ -799,6 +799,7 @@ async function saveProperty() {
 
 document.getElementById('modal').addEventListener('click',function(e){if(e.target===this)closeModal();});
 render();
+window.addEventListener("load", function() { render(); });
 </script>
 </body>
 </html>
