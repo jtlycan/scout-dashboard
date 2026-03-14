@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scout — Property Intelligence</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;1,400&family=Geologica:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --cream:#faf8f4;--cream2:#f3f0ea;--cream3:#e8e3d8;
+  --stone:#c8bfaa;--stone2:#a89e8a;
+  --ink:#1a1714;--ink2:#3d3830;--ink3:#6b6358;
+  --amber:#b8721a;--amber-light:#d4892a;--amber-pale:#fdf3e3;--amber-pale2:#f7e4c0;
+  --green:#2d6a4a;--green-pale:#e8f4ed;
+  --red:#8b2e2e;--red-pale:#f4e8e8;
+  --blue:#2a4a7a;--blue-pale:#e8eef8;
+  --purple:#5a3a7a;--purple-pale:#f0ebf8;
+  --teal:#1a5a6a;--teal-pale:#e8f3f5;
+  --radius:8px;
+  --shadow:0 1px 3px rgba(26,23,20,0.08),0 4px 16px rgba(26,23,20,0.06);
+  --shadow-lg:0 4px 6px rgba(26,23,20,0.06),0 12px 40px rgba(26,23,20,0.12);
+  --font-display:'Playfair Display',Georgia,serif;
+  --font-body:'Geologica',system-ui,sans-serif;
+}
+html{height:100%}
+body{background:var(--cream);color:var(--ink);font-family:var(--font-body);font-size:13px;min-height:100vh}
+.header{background:var(--ink);padding:0 32px;display:flex;align-items:center;justify-content:space-between;height:60px;position:sticky;top:0;z-index:500}
+.logo{font-family:var(--font-display);font-size:22px;font-weight:700;color:#fff;letter-spacing:-0.3px;display:flex;align-items:center;gap:10px}
+.logo-dot{width:8px;height:8px;border-radius:50%;background:var(--amber-light);display:inline-block;margin-bottom:1px}
+.header-center{display:flex;gap:6px;align-items:center}
+.hstat{font-size:11px;color:rgba(255,255,255,0.5);background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:3px 12px;display:flex;align-items:center;gap:6px}
+.hstat b{color:#fff;font-weight:500}
+.hstat-dot{width:6px;height:6px;border-radius:50%}
+.add-btn{background:var(--amber);color:#fff;border:none;border-radius:var(--radius);font-family:var(--font-body);font-size:12px;font-weight:500;padding:8px 18px;cursor:pointer;transition:background 0.15s}
+.add-btn:hover{background:var(--amber-light)}
+.stats-bar{background:#fff;border-bottom:1px solid var(--cream3);padding:14px 32px;display:flex;gap:0;align-items:stretch}
+.stat-card{flex:1;padding:0 24px;display:flex;flex-direction:column;gap:3px;border-right:1px solid var(--cream3)}
+.stat-card:first-child{padding-left:0}
+.stat-card:last-child{border-right:none}
+.stat-label{font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:0.08em;font-weight:500}
+.stat-value{font-family:var(--font-display);font-size:24px;font-weight:500;color:var(--ink);line-height:1}
+.stat-sub{font-size:11px;color:var(--ink3);margin-top:1px}
+.stat-value.amber{color:var(--amber)}
+.stat-value.green{color:var(--green)}
+.filter-bar{background:#fff;border-bottom:1px solid var(--cream3);padding:10px 32px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;position:sticky;top:60px;z-index:400}
+.filter-label{font-size:11px;color:var(--stone2);margin-right:4px;font-weight:500}
+.fpill{font-size:11px;padding:4px 12px;border-radius:20px;border:1px solid var(--cream3);color:var(--ink3);background:transparent;cursor:pointer;font-family:var(--font-body);transition:all 0.15s;font-weight:400}
+.fpill:hover{border-color:var(--amber);color:var(--amber)}
+.fpill.active{background:var(--amber-pale2);border-color:var(--amber);color:var(--amber)}
+.sort-select{margin-left:auto;background:#fff;border:1px solid var(--cream3);border-radius:var(--radius);color:var(--ink2);font-family:var(--font-body);font-size:11px;padding:5px 10px;cursor:pointer;outline:none}
+.map-section{background:#fff;border-bottom:1px solid var(--cream3)}
+.map-header{padding:12px 32px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--cream2)}
+.map-title{font-size:11px;color:var(--ink3);font-weight:500;text-transform:uppercase;letter-spacing:0.08em}
+.map-legend{display:flex;gap:14px;align-items:center}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--ink3)}
+.legend-dot{width:10px;height:10px;border-radius:50%;border:2px solid rgba(0,0,0,0.15)}
+#map{height:340px;width:100%}
+.map-empty{height:340px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:var(--stone2);background:var(--cream2)}
+.map-empty-icon{font-size:32px;opacity:0.4}
+.map-empty-text{font-size:13px}
+.grid-section{padding:28px 32px}
+.grid-header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:20px}
+.grid-title{font-family:var(--font-display);font-size:20px;font-weight:500;color:var(--ink)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:20px}
+.card{background:#fff;border:1px solid var(--cream3);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;transition:box-shadow 0.2s,transform 0.15s;box-shadow:var(--shadow)}
+.card:hover{box-shadow:var(--shadow-lg);transform:translateY(-2px)}
+.card.saved{border-color:rgba(45,106,74,0.4)}
+.card.dismissed{opacity:0.4;filter:grayscale(0.3)}
+.card-img-wrap{position:relative;overflow:hidden}
+.card-img{width:100%;height:215px;object-fit:cover;display:block;background:var(--cream2);transition:transform 0.4s}
+.card:hover .card-img{transform:scale(1.02)}
+.card-img-overlay{position:absolute;inset:0;background:linear-gradient(to bottom,transparent 50%,rgba(26,23,20,0.5) 100%);pointer-events:none}
+.score-badge{position:absolute;top:12px;right:12px;width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:20px;font-weight:700;border:2px solid rgba(255,255,255,0.3);backdrop-filter:blur(8px)}
+.sh{background:rgba(45,106,74,0.9);color:#d4f0dc}
+.sm{background:rgba(184,114,26,0.9);color:#fde8c0}
+.sl{background:rgba(139,46,46,0.9);color:#f0c0c0}
+.card-img-addr{position:absolute;bottom:10px;left:12px;right:60px;font-family:var(--font-display);font-size:14px;font-weight:500;color:#fff;line-height:1.3;text-shadow:0 1px 3px rgba(0,0,0,0.5)}
+.card-body{padding:16px 18px;flex:1;display:flex;flex-direction:column;gap:12px}
+.card-meta{display:flex;gap:0;border-bottom:1px solid var(--cream2);padding-bottom:12px}
+.mi{flex:1;display:flex;flex-direction:column;gap:2px;padding-right:12px;border-right:1px solid var(--cream2)}
+.mi:last-child{border-right:none;padding-right:0;padding-left:12px}
+.ml{font-size:9px;color:var(--stone2);text-transform:uppercase;letter-spacing:0.08em;font-weight:500}
+.mv{font-size:14px;color:var(--ink);font-weight:500}
+.pc{font-size:10px;color:var(--green);font-weight:500;margin-top:1px}
+.tags{display:flex;flex-wrap:wrap;gap:5px}
+.tag{font-size:10px;padding:3px 9px;border-radius:4px;font-weight:500;position:relative;display:inline-block}
+.tg{background:var(--purple-pale);color:var(--purple);border:1px solid rgba(90,58,122,0.2)}
+.ta{background:var(--green-pale);color:var(--green);border:1px solid rgba(45,106,74,0.2)}
+.tb{background:var(--blue-pale);color:var(--blue);border:1px solid rgba(42,74,122,0.2)}
+.tw{background:var(--amber-pale);color:var(--amber);border:1px solid rgba(184,114,26,0.2);cursor:help}
+.tu{background:var(--red-pale);color:var(--red);border:1px solid rgba(139,46,46,0.2)}
+.tmf{background:var(--teal-pale);color:var(--teal);border:1px solid rgba(26,90,106,0.2)}
+.wtip{display:none;position:absolute;bottom:calc(100% + 8px);left:0;background:var(--ink);color:#fff;border-radius:var(--radius);padding:8px 12px;font-size:11px;width:220px;line-height:1.6;z-index:50;font-weight:400;box-shadow:var(--shadow-lg)}
+.tw:hover .wtip{display:block}
+.ai-block{background:var(--cream);border-left:3px solid var(--amber);border-radius:0 var(--radius) var(--radius) 0;padding:10px 14px;font-size:11px;color:var(--ink2);line-height:1.75}
+.ai-lbl{font-size:9px;color:var(--amber);font-weight:600;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:5px}
+.note-input{width:100%;background:var(--cream);border:1px solid var(--cream3);border-radius:var(--radius);color:var(--ink);font-family:var(--font-body);font-size:12px;padding:9px 12px;resize:none;outline:none;transition:border-color 0.15s;line-height:1.5}
+.note-input:focus{border-color:var(--amber);background:#fff}
+.note-input::placeholder{color:var(--stone)}
+.card-actions{display:flex;gap:7px;margin-top:auto;padding-top:2px}
+.abtn{flex:1;font-family:var(--font-body);font-size:11px;font-weight:500;padding:8px;border-radius:var(--radius);cursor:pointer;border:1px solid var(--cream3);background:#fff;color:var(--ink3);transition:all 0.15s;text-align:center}
+.abtn:hover{background:var(--cream)}
+.abtn.save{border-color:rgba(45,106,74,0.3);color:var(--green)}
+.abtn.save:hover,.abtn.save.on{background:var(--green-pale);border-color:var(--green)}
+.abtn.dismiss{border-color:rgba(139,46,46,0.3);color:var(--red)}
+.abtn.dismiss:hover,.abtn.dismiss.on{background:var(--red-pale);border-color:var(--red)}
+.abtn.edit:hover{color:var(--amber);border-color:var(--amber)}
+.abtn.del{max-width:34px;color:var(--stone2)}
+.abtn.del:hover{color:var(--red);border-color:var(--red);background:var(--red-pale)}
+.alink{background:#fff;border:1px solid var(--cream3);border-radius:var(--radius);color:var(--ink3);font-family:var(--font-body);font-size:11px;font-weight:500;padding:8px 12px;text-decoration:none;display:flex;align-items:center;transition:all 0.15s;white-space:nowrap}
+.alink:hover{border-color:var(--amber);color:var(--amber);background:var(--amber-pale)}
+.empty{grid-column:1/-1;text-align:center;padding:80px 40px}
+.empty-icon{font-size:40px;opacity:0.25;margin-bottom:16px}
+.empty-title{font-family:var(--font-display);font-size:28px;font-weight:500;font-style:italic;color:var(--ink2);margin-bottom:10px}
+.empty-sub{font-size:13px;color:var(--ink3);line-height:1.8;max-width:420px;margin:0 auto}
+.empty-cta{margin-top:20px;display:inline-block;background:var(--amber);color:#fff;border:none;border-radius:var(--radius);font-family:var(--font-body);font-size:13px;font-weight:500;padding:10px 22px;cursor:pointer}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(26,23,20,0.6);z-index:1000;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto;backdrop-filter:blur(4px)}
+.modal-overlay.open{display:flex}
+.modal{background:#fff;border-radius:16px;width:100%;max-width:580px;box-shadow:var(--shadow-lg);overflow:hidden}
+.modal-header{background:var(--ink);padding:24px 28px;display:flex;align-items:center;justify-content:space-between}
+.modal-title{font-family:var(--font-display);font-size:20px;font-weight:500;color:#fff}
+.modal-close{background:rgba(255,255,255,0.1);border:none;border-radius:50%;width:30px;height:30px;color:rgba(255,255,255,0.7);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.modal-close:hover{background:rgba(255,255,255,0.2);color:#fff}
+.modal-body{padding:28px}
+.modal-hint{background:var(--amber-pale);border:1px solid var(--amber-pale2);border-radius:var(--radius);padding:12px 14px;font-size:11px;color:var(--ink2);line-height:1.7;margin-bottom:22px}
+.modal-hint code{background:var(--amber-pale2);color:var(--amber);padding:1px 6px;border-radius:4px;font-size:11px}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.frow.full{grid-template-columns:1fr}
+.fgrp{display:flex;flex-direction:column;gap:5px}
+.flbl{font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:0.07em;font-weight:500}
+.finput,.ftextarea{background:var(--cream);border:1px solid var(--cream3);border-radius:var(--radius);color:var(--ink);font-family:var(--font-body);font-size:13px;padding:10px 12px;outline:none;transition:border-color 0.15s,background 0.15s;width:100%}
+.finput:focus,.ftextarea:focus{border-color:var(--amber);background:#fff}
+.finput::placeholder,.ftextarea::placeholder{color:var(--stone)}
+.ftextarea{resize:vertical;min-height:75px;line-height:1.5}
+.score-section{margin-bottom:16px}
+.score-row{display:flex;align-items:center;gap:14px;margin-top:8px}
+.score-display{width:52px;height:52px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:22px;font-weight:700;border:2px solid rgba(0,0,0,0.1);transition:background 0.2s;color:#fff}
+.score-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--stone2);margin-top:4px}
+input[type=range]{flex:1;accent-color:var(--amber);height:4px;cursor:pointer}
+.tags-section{margin-bottom:16px}
+.tag-grid{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px}
+.tchk{display:none}
+.tchl{font-size:11px;padding:5px 12px;border-radius:20px;border:1px solid var(--cream3);color:var(--ink3);cursor:pointer;transition:all 0.15s;user-select:none;background:#fff;font-weight:400}
+.tchl:hover{border-color:var(--amber);color:var(--amber)}
+.tchk:checked+.tchl{border-color:var(--amber);color:var(--amber);background:var(--amber-pale)}
+.modal-footer{padding:20px 28px;border-top:1px solid var(--cream2);display:flex;gap:10px;background:var(--cream)}
+.modal-save{flex:1;background:var(--amber);color:#fff;border:none;border-radius:var(--radius);font-family:var(--font-body);font-size:13px;font-weight:500;padding:12px;cursor:pointer}
+.modal-save:hover{background:var(--amber-light)}
+.modal-cancel{background:#fff;border:1px solid var(--cream3);border-radius:var(--radius);font-family:var(--font-body);font-size:13px;color:var(--ink3);padding:12px 22px;cursor:pointer}
+.leaflet-popup-content-wrapper{border-radius:10px;box-shadow:var(--shadow-lg);border:1px solid var(--cream3)}
+.leaflet-popup-content{margin:0;padding:0}
+.map-popup{padding:14px 16px;min-width:200px}
+.popup-addr{font-family:var(--font-display);font-size:14px;font-weight:500;color:var(--ink);margin-bottom:6px}
+.popup-meta{display:flex;gap:12px;font-size:11px;color:var(--ink3);margin-bottom:8px}
+.popup-score{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;font-family:var(--font-display);font-size:13px;font-weight:700;color:#fff;float:right;margin-top:-2px}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:var(--cream)}
+::-webkit-scrollbar-thumb{background:var(--cream3);border-radius:3px}
+</style>
+</head>
+<body>
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">Add Property</div>
+      <button class="modal-close" onclick="closeModal()">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-hint">Ask Claude: <code>"Analyze this for my Scout dashboard: [URL]"</code> &mdash; then paste the score, tags, and reasoning below.</div>
+      <div class="frow full"><div class="fgrp"><div class="flbl">Listing URL</div><input class="finput" id="f-url" placeholder="https://www.zillow.com/homedetails/..."/></div></div>
+      <div class="frow full"><div class="fgrp"><div class="flbl">Address *</div><input class="finput" id="f-address" placeholder="1725 Alkire Ct, Golden, CO 80401"/></div></div>
+      <div class="frow">
+        <div class="fgrp"><div class="flbl">List Price</div><input class="finput" id="f-price" placeholder="$285,000"/></div>
+        <div class="fgrp"><div class="flbl">Sq Ft</div><input class="finput" id="f-sqft" placeholder="1,450"/></div>
+      </div>
+      <div class="frow">
+        <div class="fgrp"><div class="flbl">Days on Market</div><input class="finput" id="f-dom" type="number" placeholder="14"/></div>
+        <div class="fgrp"><div class="flbl">Price History</div><input class="finput" id="f-phist" placeholder="Reduced $10k 2 weeks ago"/></div>
+      </div>
+      <div class="frow full"><div class="fgrp"><div class="flbl">Photo URL</div><input class="finput" id="f-photo" placeholder="https://photos.zillowstatic.com/..."/></div></div>
+      <div class="score-section">
+        <div class="flbl">Sweet-Spot Score</div>
+        <div class="score-row">
+          <div class="score-display" id="sdisplay">5</div>
+          <div style="flex:1">
+            <input type="range" min="1" max="10" value="5" id="f-score" oninput="updateScore(this.value)" style="width:100%"/>
+            <div class="score-labels"><span>Too rough</span><span>Sweet spot</span><span>Too polished</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="tags-section">
+        <div class="flbl">Tags</div>
+        <div class="tag-grid">
+          <input type="checkbox" class="tchk" id="tg" value="grandma_home"><label class="tchl" for="tg">&#127968; Grandma home</label>
+          <input type="checkbox" class="tchk" id="ta" value="adu_potential"><label class="tchl" for="ta">&#128663; ADU potential</label>
+          <input type="checkbox" class="tchk" id="tb" value="basement_bonus"><label class="tchl" for="tb">&#127962; Basement bonus</label>
+          <input type="checkbox" class="tchk" id="tw" value="weird_property"><label class="tchl" for="tw">&#10024; Weird property</label>
+          <input type="checkbox" class="tchk" id="tu" value="uninhabitable"><label class="tchl" for="tu">&#9888;&#65039; Uninhabitable</label>
+          <input type="checkbox" class="tchk" id="tmf" value="multi_family"><label class="tchl" for="tmf">&#128104;&#8205;&#128105;&#8205;&#128103; Multi-family</label>
+        </div>
+      </div>
+      <div class="frow full" id="wdrow" style="display:none"><div class="fgrp"><div class="flbl">Why is it weird?</div><input class="finput" id="f-wdesc" placeholder="e.g. Multiple lots, unusual zoning"/></div></div>
+      <div class="frow full"><div class="fgrp"><div class="flbl">AI Reasoning</div><textarea class="ftextarea" id="f-reasoning" placeholder="Paste Claude's analysis here..." rows="4"></textarea></div></div>
+      <div class="frow full"><div class="fgrp"><div class="flbl">Your Notes</div><textarea class="ftextarea" id="f-notes" placeholder="Personal notes, visit observations..." rows="2"></textarea></div></div>
+    </div>
+    <div class="modal-footer">
+      <button class="modal-save" onclick="saveProperty()">Save Property</button>
+      <button class="modal-cancel" onclick="closeModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="header">
+  <div class="logo"><div class="logo-dot"></div>Scout</div>
+  <div class="header-center">
+    <div class="hstat"><div class="hstat-dot" style="background:#60a5fa"></div>Denver Metro</div>
+    <div class="hstat"><div class="hstat-dot" style="background:#34d399"></div>Mountains</div>
+    <div class="hstat"><b id="h-total">0</b>&nbsp;tracked</div>
+    <div class="hstat"><b id="h-saved">0</b>&nbsp;saved</div>
+  </div>
+  <button class="add-btn" onclick="openModal()">+ Add Property</button>
+</div>
+
+<div class="stats-bar">
+  <div class="stat-card"><div class="stat-label">Properties tracked</div><div class="stat-value amber" id="s-total">0</div><div class="stat-sub">Denver metro + mountains</div></div>
+  <div class="stat-card"><div class="stat-label">Average AI score</div><div class="stat-value" id="s-avg">&mdash;</div><div class="stat-sub">Sweet-spot scale 1&ndash;10</div></div>
+  <div class="stat-card"><div class="stat-label">Saved</div><div class="stat-value green" id="s-saved">0</div><div class="stat-sub">Flagged for follow-up</div></div>
+  <div class="stat-card"><div class="stat-label">ADU potential</div><div class="stat-value" id="s-adu">0</div><div class="stat-sub">Garage / outbuilding candidates</div></div>
+  <div class="stat-card"><div class="stat-label">Top score</div><div class="stat-value amber" id="s-top">&mdash;</div><div class="stat-sub" id="s-top-addr">No properties yet</div></div>
+</div>
+
+<div class="filter-bar">
+  <span class="filter-label">Filter</span>
+  <button class="fpill active" onclick="setFilter('all',this)">All</button>
+  <button class="fpill" onclick="setFilter('saved',this)">Saved</button>
+  <button class="fpill" onclick="setFilter('grandma_home',this)">&#127968; Grandma</button>
+  <button class="fpill" onclick="setFilter('adu_potential',this)">&#128663; ADU</button>
+  <button class="fpill" onclick="setFilter('basement_bonus',this)">&#127962; Basement</button>
+  <button class="fpill" onclick="setFilter('weird_property',this)">&#10024; Weird</button>
+  <button class="fpill" onclick="setFilter('uninhabitable',this)">&#9888;&#65039; Uninhabitable</button>
+  <button class="fpill" onclick="setFilter('multi_family',this)">&#128104;&#8205;&#128105;&#8205;&#128103; Multi-family</button>
+  <select class="sort-select" onchange="setSort(this.value)">
+    <option value="score">Sort: AI Score &darr;</option>
+    <option value="price_asc">Sort: Price &uarr;</option>
+    <option value="price_desc">Sort: Price &darr;</option>
+    <option value="newest">Sort: Newest</option>
+    <option value="dom">Sort: Days on market</option>
+  </select>
+</div>
+
+<div class="map-section">
+  <div class="map-header">
+    <div class="map-title">Property Map &mdash; Denver Metro &amp; Mountain Communities</div>
+    <div class="map-legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#2d6a4a"></div>Score 8&ndash;10</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#b8721a"></div>Score 5&ndash;7</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#8b2e2e"></div>Score 1&ndash;4</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#2a4a7a;opacity:0.5"></div>Dismissed</div>
+    </div>
+  </div>
+  <div id="map-wrap">
+    <div class="map-empty" id="map-empty"><div class="map-empty-icon">&#128205;</div><div class="map-empty-text">Properties will appear on the map as you add them</div></div>
+    <div id="map" style="display:none"></div>
+  </div>
+</div>
+
+<div class="grid-section">
+  <div class="grid-header"><div class="grid-title">Properties</div><div class="grid-count" id="grid-count"></div></div>
+  <div class="grid" id="grid"></div>
+</div>
+
+<script>
+let props=JSON.parse(localStorage.getItem('scout_v2')||'[]');
+let filter='all',sort='score',editId=null,map=null,markers={};
+if(props.length&&!props[0].lat)props.forEach(p=>{p.lat=null;p.lng=null;});
+document.getElementById('tw').addEventListener('change',function(){document.getElementById('wdrow').style.display=this.checked?'grid':'none';});
+function save(){localStorage.setItem('scout_v2',JSON.stringify(props));}
+function scoreBg(s){return s>=8?'#2d6a4a':s>=5?'#b8721a':'#8b2e2e';}
+function scoreCls(s){return s>=8?'sh':s>=5?'sm':'sl';}
+function updateScore(v){const d=document.getElementById('sdisplay');d.textContent=v;d.style.background=scoreBg(parseInt(v));}
+updateScore(5);
+function noImg(){return "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='215'><rect width='400' height='215' fill='%23f3f0ea'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23a89e8a' font-size='12' font-family='Georgia'>no photo available</text></svg>";}
+function tagHTML(p){
+  const map=[['grandma_home','tg','&#127968; Grandma home'],['adu_potential','ta','&#128663; ADU potential'],['basement_bonus','tb','&#127962; Basement bonus'],['weird_property','tw','&#10024; Weird property'],['uninhabitable','tu','&#9888;&#65039; Uninhabitable'],['multi_family','tmf','&#128104;&#8205;&#128105;&#8205;&#128103; Multi-family']];
+  return(p.tags||[]).map(t=>{const m=map.find(x=>x[0]===t);if(!m)return'';const tip=(t==='weird_property'&&p.weird_desc)?'<span class="wtip">'+p.weird_desc+'</span>':'';return'<span class="tag '+m[1]+'">'+m[2]+tip+'</span>';}).join('');
+}
+function cardHTML(p){
+  const sc=p.status==='saved'?'saved':p.status==='dismissed'?'dismissed':'';
+  const son=p.status==='saved'?'on':'',don=p.status==='dismissed'?'on':'';
+  const sl=p.status==='saved'?'&#10003; Saved':'Save',dl=p.status==='dismissed'?'&#10003; Dismissed':'Dismiss';
+  const img=p.photo||noImg();
+  const sa=(p.address||'').split(',')[0];
+  return '<div class="card '+sc+'" id="card-'+p.id+'"><div class="card-img-wrap"><img class="card-img" src="'+img+'" onerror="this.src=''+noImg()+''" loading="lazy"/><div class="card-img-overlay"></div><div class="score-badge '+scoreCls(p.score)+'">'+p.score+'</div><div class="card-img-addr">'+sa+'</div></div><div class="card-body"><div><div style="font-size:11px;color:var(--ink3)">'+((p.address||'').split(',').slice(1).join(',').trim())+'</div><div style="font-size:10px;color:var(--stone2);margin-top:2px">Added '+new Date(p.added).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+'</div></div><div class="card-meta"><div class="mi"><div class="ml">Price</div><div class="mv">'+(p.price||'&mdash;')+'</div>'+(p.price_history?'<div class="pc">&darr; '+p.price_history+'</div>':'')+'</div><div class="mi"><div class="ml">Sqft</div><div class="mv">'+(p.sqft||'&mdash;')+'</div></div><div class="mi"><div class="ml">Days listed</div><div class="mv">'+(p.dom!=null?p.dom:'&mdash;')+'</div></div></div><div class="tags">'+tagHTML(p)+'</div>'+(p.reasoning?'<div class="ai-block"><div class="ai-lbl">AI Analysis</div>'+p.reasoning+'</div>':'')+'<textarea class="note-input" rows="2" placeholder="Add notes..." onchange="saveNote(''+p.id+'',this.value)">'+((p.notes||''))+'</textarea><div class="card-actions"><button class="abtn save '+son+'" onclick="setStatus(''+p.id+'','saved')">'+sl+'</button><button class="abtn dismiss '+don+'" onclick="setStatus(''+p.id+'','dismissed')">'+dl+'</button>'+(p.url?'<a class="alink" href="'+p.url+'" target="_blank">View &#8599;</a>':'')+'<button class="abtn edit" onclick="openEdit(''+p.id+'')">Edit</button><button class="abtn del" onclick="deleteProp(''+p.id+'')" title="Remove">&#10005;</button></div></div></div>';
+}
+function getList(){
+  let list=[...props];
+  if(filter==='saved')list=list.filter(p=>p.status==='saved');
+  else if(filter!=='all')list=list.filter(p=>(p.tags||[]).includes(filter));
+  const pp=p=>parseFloat((p.price||'').replace(/[^0-9.]/g,''))||0;
+  if(sort==='score')list.sort((a,b)=>b.score-a.score);
+  else if(sort==='price_asc')list.sort((a,b)=>pp(a)-pp(b));
+  else if(sort==='price_desc')list.sort((a,b)=>pp(b)-pp(a));
+  else if(sort==='newest')list.sort((a,b)=>b.added-a.added);
+  else if(sort==='dom')list.sort((a,b)=>(a.dom||9999)-(b.dom||9999));
+  return list;
+}
+function updateStats(){
+  const total=props.length,saved=props.filter(p=>p.status==='saved').length,adu=props.filter(p=>(p.tags||[]).includes('adu_potential')).length;
+  const scores=props.map(p=>p.score).filter(Boolean);
+  const avg=scores.length?(scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1):'&mdash;';
+  const top=props.filter(p=>p.score).sort((a,b)=>b.score-a.score)[0];
+  document.getElementById('h-total').textContent=total;
+  document.getElementById('h-saved').textContent=saved;
+  document.getElementById('s-total').textContent=total;
+  document.getElementById('s-avg').innerHTML=avg;
+  document.getElementById('s-saved').textContent=saved;
+  document.getElementById('s-adu').textContent=adu;
+  document.getElementById('s-top').textContent=top?top.score:'&mdash;';
+  document.getElementById('s-top-addr').textContent=top?(top.address||'').split(',')[0]:'No properties yet';
+}
+async function geocodeAddress(address){
+  try{const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&q='+encodeURIComponent(address)+'&limit=1');const d=await r.json();if(d.length)return{lat:parseFloat(d[0].lat),lng:parseFloat(d[0].lon)};}catch(e){}return null;
+}
+function initMap(){
+  if(map)return;
+  document.getElementById('map-empty').style.display='none';
+  document.getElementById('map').style.display='block';
+  map=L.map('map',{zoomControl:true}).setView([39.7392,-104.9903],10);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; OpenStreetMap &copy; CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
+}
+function updateMap(){
+  const located=props.filter(p=>p.lat&&p.lng);
+  if(!located.length){
+    if(map){Object.values(markers).forEach(m=>map.removeLayer(m));markers={};}
+    document.getElementById('map-empty').style.display='flex';
+    document.getElementById('map').style.display='none';
+    map=null;return;
+  }
+  initMap();
+  Object.keys(markers).forEach(id=>{if(!props.find(p=>p.id===id)){map.removeLayer(markers[id]);delete markers[id];}});
+  located.forEach(p=>{
+    if(markers[p.id])map.removeLayer(markers[p.id]);
+    const color=p.status==='dismissed'?'#94a3b8':scoreBg(p.score);
+    const size=p.status==='saved'?16:12;
+    const icon=L.divIcon({className:'',html:'<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;background:'+color+';border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.25);cursor:pointer"></div>',iconSize:[size,size],iconAnchor:[size/2,size/2]});
+    const sa=(p.address||'').split(',')[0];
+    const popup='<div class="map-popup"><div style="display:flex;align-items:flex-start;justify-content:space-between"><div class="popup-addr">'+sa+'</div><div class="popup-score" style="background:'+color+'">'+p.score+'</div></div><div class="popup-meta"><span>'+(p.price||'&mdash;')+'</span><span>'+(p.sqft||'&mdash;')+' sqft</span>'+(p.dom!=null?'<span>'+p.dom+'d listed</span>':'')+'</div><div style="font-size:10px;color:#6b6358">'+((p.address||'').split(',').slice(1).join(',').trim())+'</div>'+(p.url?'<div style="margin-top:8px"><a href="'+p.url+'" target="_blank" style="font-size:11px;color:#b8721a;text-decoration:none;font-weight:500">View listing &#8599;</a></div>':'')+'</div>';
+    markers[p.id]=L.marker([p.lat,p.lng],{icon}).addTo(map).bindPopup(popup);
+  });
+  const latlngs=located.map(p=>[p.lat,p.lng]);
+  if(latlngs.length===1)map.setView(latlngs[0],13);
+  else map.fitBounds(latlngs,{padding:[40,40]});
+}
+function render(){
+  updateStats();updateMap();
+  const list=getList(),g=document.getElementById('grid');
+  if(!list.length){g.innerHTML=props.length===0?'<div class="empty"><div class="empty-icon">&#127968;</div><div class="empty-title">Your portfolio starts here.</div><div class="empty-sub">Ask Claude to analyze a listing, then click Add Property to save it to your dashboard.</div><button class="empty-cta" onclick="openModal()">+ Add your first property</button></div>':'<div class="empty"><div class="empty-title">No matches.</div><div class="empty-sub">No properties match this filter.</div></div>';return;}
+  g.innerHTML=list.map(cardHTML).join('');
+}
+function setFilter(f,el){filter=f;document.querySelectorAll('.fpill').forEach(p=>p.classList.remove('active'));el.classList.add('active');render();}
+function setSort(v){sort=v;render();}
+function setStatus(id,s){const p=props.find(x=>x.id===id);if(!p)return;p.status=p.status===s?'neutral':s;save();render();}
+function saveNote(id,v){const p=props.find(x=>x.id===id);if(p){p.notes=v;save();}}
+function deleteProp(id){if(!confirm('Remove this property from Scout?'))return;props=props.filter(p=>p.id!==id);save();render();}
+function openModal(){
+  editId=null;document.getElementById('modal-title').textContent='Add Property';
+  ['f-url','f-address','f-price','f-sqft','f-dom','f-phist','f-photo','f-reasoning','f-notes','f-wdesc'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  document.getElementById('f-score').value=5;updateScore(5);
+  ['tg','ta','tb','tw','tu','tmf'].forEach(id=>{document.getElementById(id).checked=false;});
+  document.getElementById('wdrow').style.display='none';
+  document.getElementById('modal').classList.add('open');
+}
+function openEdit(id){
+  const p=props.find(x=>x.id===id);if(!p)return;
+  editId=id;document.getElementById('modal-title').textContent='Edit Property';
+  document.getElementById('f-url').value=p.url||'';
+  document.getElementById('f-address').value=p.address||'';
+  document.getElementById('f-price').value=p.price||'';
+  document.getElementById('f-sqft').value=p.sqft||'';
+  document.getElementById('f-dom').value=p.dom!=null?p.dom:'';
+  document.getElementById('f-phist').value=p.price_history||'';
+  document.getElementById('f-photo').value=p.photo||'';
+  document.getElementById('f-score').value=p.score||5;updateScore(p.score||5);
+  document.getElementById('f-reasoning').value=p.reasoning||'';
+  document.getElementById('f-notes').value=p.notes||'';
+  document.getElementById('f-wdesc').value=p.weird_desc||'';
+  const tags=p.tags||[];
+  ['tg','ta','tb','tw','tu','tmf'].forEach(id=>{const val=document.getElementById(id).value;document.getElementById(id).checked=tags.includes(val);});
+  document.getElementById('wdrow').style.display=tags.includes('weird_property')?'grid':'none';
+  document.getElementById('modal').classList.add('open');
+}
+function closeModal(){document.getElementById('modal').classList.remove('open');editId=null;}
+async function saveProperty(){
+  const address=document.getElementById('f-address').value.trim();
+  if(!address){alert('Address is required.');return;}
+  const tags=[];
+  ['tg','ta','tb','tw','tu','tmf'].forEach(id=>{const el=document.getElementById(id);if(el.checked)tags.push(el.value);});
+  const dv=document.getElementById('f-dom').value;
+  const data={url:document.getElementById('f-url').value.trim(),address,price:document.getElementById('f-price').value.trim(),sqft:document.getElementById('f-sqft').value.trim(),dom:dv!==''?parseInt(dv):null,price_history:document.getElementById('f-phist').value.trim()||null,photo:document.getElementById('f-photo').value.trim()||null,score:parseInt(document.getElementById('f-score').value),reasoning:document.getElementById('f-reasoning').value.trim(),notes:document.getElementById('f-notes').value.trim(),weird_desc:document.getElementById('f-wdesc').value.trim()||null,tags};
+  if(editId){
+    const idx=props.findIndex(p=>p.id===editId);
+    if(idx>-1){const needsGeo=!props[idx].lat||props[idx].address!==data.address;props[idx]={...props[idx],...data};if(needsGeo){closeModal();save();render();const geo=await geocodeAddress(data.address);if(geo){props[idx].lat=geo.lat;props[idx].lng=geo.lng;save();render();}return;}}
+  }else{
+    const newProp={id:'p_'+Date.now(),status:'neutral',added:Date.now(),lat:null,lng:null,...data};
+    props.unshift(newProp);closeModal();save();render();
+    const geo=await geocodeAddress(data.address);if(geo){newProp.lat=geo.lat;newProp.lng=geo.lng;save();render();}
+    return;
+  }
+  save();closeModal();render();
+}
+document.getElementById('modal').addEventListener('click',function(e){if(e.target===this)closeModal();});
+(function seedIfEmpty(){
+  const existing=JSON.parse(localStorage.getItem('scout_v2')||'[]');
+  if(existing.length>0)return;
+  const seed=[{id:'p_seed_1',status:'neutral',added:Date.now()-1000*60*60*24*2,lat:null,lng:null,url:'https://www.zillow.com/homedetails/6795-W-31st-Ave-Wheat-Ridge-CO-80214/13738209_zpid',address:'6795 W 31st Avenue, Wheat Ridge, CO 80214',price:'$650,000',sqft:'2,070',dom:143,price_history:null,photo:'https://photos.zillowstatic.com/fp/8ec4e31a7d1bb80184957bd9dbf0de73-cc_ft_960.jpg',score:8,tags:['adu_potential','basement_bonus','weird_property','multi_family'],weird_desc:'Up-down duplex on an 18,730 sqft lot with a large detached 2-car garage',reasoning:'Large overgrown lot with mature trees, a 3-bed/2-bath upper unit and a separate 1-bed/1-bath basement unit — both need full renovation. Detached 2-car garage adds ADU conversion potential. At 143 days on market, there's negotiating room.',notes:'You flagged this as "amazing" — needs a lot of work but nothing too drastic. Love the exterior and large lot with many trees.'},{id:'p_seed_2',status:'neutral',added:Date.now()-1000*60*60*24*1,lat:null,lng:null,url:'https://www.zillow.com/homedetails/3450-Benton-St-Wheat-Ridge-CO-80212/13737503_zpid',address:'3450 Benton Street, Wheat Ridge, CO 80212',price:null,sqft:null,dom:null,price_history:null,photo:null,score:9,tags:['grandma_home'],weird_desc:null,reasoning:'A textbook grandma home — complete updates needed throughout but otherwise in really good condition. Frozen in time cosmetically while the structure remains solid.',notes:'Your note: "needs complete updates, but otherwise in really good condition — a grandma home."'},{id:'p_seed_3',status:'saved',added:Date.now()-1000*60*60*12,lat:null,lng:null,url:'https://www.zillow.com/homedetails/940-McIntyre-St-Golden-CO-80401/13750922_zpid',address:'940 McIntyre Street, Golden, CO 80401',price:null,sqft:null,dom:null,price_history:null,photo:null,score:9,tags:['weird_property','adu_potential','basement_bonus'],weird_desc:'Multiple lots and multiple residencies on a single property — rare zoning opportunity',reasoning:'One of the most unusual properties in your target area — multiple lots and residencies on a single parcel in Golden. Multi-structure nature opens ADU and rental possibilities. Golden location adds long-term value ceiling.',notes:'You flagged this as amazing — drawn to the multiple lots and residencies on one property. Rare zoning. Prioritize visiting.'}];
+  localStorage.setItem('scout_v2',JSON.stringify(seed));
+  props=seed;
+})();
+render();
+</script>
+</body>
+</html>
