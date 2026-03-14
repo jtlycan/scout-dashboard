@@ -684,6 +684,7 @@ function updateMap() {
 }
 
 function render() {
+  props = JSON.parse(localStorage.getItem('scout_v2') || '[]');
   updateStats();
   updateMap();
   const list = getList();
