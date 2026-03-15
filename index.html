@@ -356,6 +356,12 @@ input[type=range]{flex:1;accent-color:var(--amber);height:4px;cursor:pointer}
 ::-webkit-scrollbar{width:6px}
 ::-webkit-scrollbar-track{background:var(--cream)}
 ::-webkit-scrollbar-thumb{background:var(--cream3);border-radius:3px}
+.radial-wrap{position:relative;width:180px;height:180px;margin:4px auto 8px}
+.radial-legend{display:flex;flex-direction:column;gap:5px;margin-bottom:8px}
+.rl-row{display:flex;align-items:center;gap:7px;font-size:11px}
+.rl-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+.rl-name{flex:1;color:var(--ink3)}
+.rl-val{font-weight:500;color:var(--ink);min-width:28px;text-align:right}
 ::-webkit-scrollbar-thumb:hover{background:var(--stone)}
 </style>
 </head>
@@ -597,6 +603,7 @@ function cardHTML(p) {
         <div class="mi"><div class="ml">Days listed</div><div class="mv">${p.dom!=null?p.dom:'—'}</div></div>
       </div>
       <div class="tags">${tagHTML(p)}</div>
+      ${radialHTML(p)}
       ${p.reasoning?`<div class="ai-block"><div class="ai-lbl">AI Analysis</div>
         ${p.neighborhood_trajectory?`<div style="display:inline-flex;align-items:center;gap:6px;margin-bottom:6px;">
           <span style="padding:2px 8px;border-radius:4px;font-weight:600;font-size:10px;${
@@ -715,6 +722,151 @@ function updateMap() {
   else map.fitBounds(latlngs, {padding:[40,40]});
 }
 
+// ── RADIAL CHART ──
+const RCATS = [
+  { name: 'Size fit',      color: '#2a4a7a', trackAlpha: 0.12 },
+  { name: 'Value',         color: '#2d6a4a', trackAlpha: 0.12 },
+  { name: 'Reno estimate', color: '#aaaaaa', trackAlpha: 0.10 },
+  { name: 'Neighborhood',  color: '#b8721a', trackAlpha: 0.12 },
+  { name: 'Special sauce', color: '#5a3a7a', trackAlpha: 0.10 },
+];
+
+function radialSizeFit(sqft) {
+  if (!sqft) return null;
+  const n = parseFloat(String(sqft).replace(/[^0-9.]/g,''));
+  if (!n) return null;
+  return Math.max(0, Math.round(10 - Math.abs(n - 1500) / 150));
+}
+
+function radialValue(price, sqft) {
+  if (!price || !sqft) return null;
+  const p = parseFloat(String(price).replace(/[^0-9.]/g,''));
+  const s = parseFloat(String(sqft).replace(/[^0-9.]/g,''));
+  if (!p || !s) return null;
+  const psf = p / s;
+  // Use $320/sqft as Denver metro baseline comp
+  const comp = 320;
+  const r = psf / comp;
+  if (r <= 0.75) return 10;
+  if (r >= 1.15) return 2;
+  return Math.round(10 - ((r - 0.75) / 0.40) * 8);
+}
+
+function radialTraj(traj) {
+  if (!traj) return null;
+  if (traj === 'rising') return 10;
+  if (traj === 'stable') return 6;
+  if (traj === 'softening') return 3;
+  return null;
+}
+
+function drawRadial(canvasId, scores) {
+  const cvs = document.getElementById(canvasId);
+  if (!cvs) return;
+  const ctx = cvs.getContext('2d');
+  const W = 180, H = 180, cx = W/2, cy = H/2;
+  const outerR = 82, innerR = 26;
+  const n = RCATS.length;
+  const sliceAngle = (2 * Math.PI) / n;
+  const gap = 0.028;
+  const start = -Math.PI / 2;
+  const isDark = window.matchMedia('(prefers-color-scheme:dark)').matches;
+  const divider = isDark ? 'rgba(20,18,15,0.9)' : 'rgba(250,248,244,0.95)';
+  const centerBg = isDark ? '#1a1714' : '#faf8f4';
+  const centerTxt = isDark ? 'rgba(255,255,255,0.7)' : 'rgba(26,23,20,0.65)';
+
+  ctx.clearRect(0, 0, W, H);
+
+  for (let i = 0; i < n; i++) {
+    const a1 = start + i * sliceAngle + gap / 2;
+    const a2 = start + (i + 1) * sliceAngle - gap / 2;
+    const score = scores[i];
+    const cat = RCATS[i];
+    const [r,g,b] = cat.color.match(/\w\w/g).slice(0,3).map(x=>parseInt(x,16));
+
+    // Track
+    ctx.beginPath();
+    ctx.moveTo(cx + innerR*Math.cos(a1), cy + innerR*Math.sin(a1));
+    ctx.arc(cx, cy, outerR, a1, a2);
+    ctx.lineTo(cx + innerR*Math.cos(a2), cy + innerR*Math.sin(a2));
+    ctx.arc(cx, cy, innerR, a2, a1, true);
+    ctx.closePath();
+    ctx.fillStyle = `rgba(${r},${g},${b},${cat.trackAlpha})`;
+    ctx.fill();
+
+    // Fill proportional to score
+    if (score !== null && score > 0) {
+      const fillR = innerR + ((outerR - innerR) * score / 10);
+      ctx.beginPath();
+      ctx.moveTo(cx + innerR*Math.cos(a1), cy + innerR*Math.sin(a1));
+      ctx.arc(cx, cy, fillR, a1, a2);
+      ctx.lineTo(cx + innerR*Math.cos(a2), cy + innerR*Math.sin(a2));
+      ctx.arc(cx, cy, innerR, a2, a1, true);
+      ctx.closePath();
+      ctx.fillStyle = `rgba(${r},${g},${b},0.82)`;
+      ctx.fill();
+    }
+
+    // Divider
+    ctx.beginPath();
+    ctx.moveTo(cx + innerR*Math.cos(start + i*sliceAngle), cy + innerR*Math.sin(start + i*sliceAngle));
+    ctx.lineTo(cx + outerR*Math.cos(start + i*sliceAngle), cy + outerR*Math.sin(start + i*sliceAngle));
+    ctx.strokeStyle = divider;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+  }
+
+  // Outer ring border
+  ctx.beginPath();
+  ctx.arc(cx, cy, outerR, 0, 2*Math.PI);
+  ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(26,23,20,0.1)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Center fill
+  ctx.beginPath();
+  ctx.arc(cx, cy, innerR, 0, 2*Math.PI);
+  ctx.fillStyle = centerBg;
+  ctx.fill();
+  ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(26,23,20,0.1)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+}
+
+function renderRadials() {
+  props.forEach(p => {
+    const scores = [
+      radialSizeFit(p.sqft),
+      radialValue(p.price, p.sqft),
+      null,
+      radialTraj(p.neighborhood_trajectory),
+      null,
+    ];
+    drawRadial('radial-' + p.id, scores);
+  });
+}
+
+function radialLegendHTML(p) {
+  const scores = [
+    radialSizeFit(p.sqft),
+    radialValue(p.price, p.sqft),
+    null,
+    radialTraj(p.neighborhood_trajectory),
+    null,
+  ];
+  return `<div class="radial-legend">${RCATS.map((cat,i) => `
+    <div class="rl-row">
+      <div class="rl-dot" style="background:${cat.color}"></div>
+      <div class="rl-name">${cat.name}</div>
+      <div class="rl-val">${scores[i]===null?'—':scores[i]+'/10'}</div>
+    </div>`).join('')}</div>`;
+}
+
+function radialHTML(p) {
+  return `<div class="radial-wrap"><canvas id="radial-${p.id}" width="180" height="180"></canvas></div>
+  ${radialLegendHTML(p)}`;
+}
+
 function render() {
   updateStats();
   updateMap();
@@ -727,6 +879,7 @@ function render() {
     return;
   }
   g.innerHTML = list.map(cardHTML).join('');
+  setTimeout(renderRadials, 0);
 }
 
 function setFilter(f, el) {
