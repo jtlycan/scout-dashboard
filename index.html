@@ -743,12 +743,12 @@ function radialValue(price, sqft) {
 
 function radialReno(tier) {
   if (!tier) return null;
-  // light = low cost = high score (more affordable = better for strategy)
   if (tier === 'light') return 9;
   if (tier === 'medium') return 6;
   if (tier === 'heavy') return 3;
   return null;
 }
+function radialTraj(traj) {
   if (!traj) return null;
   if (traj === 'rising') return 10;
   if (traj === 'stable') return 6;
