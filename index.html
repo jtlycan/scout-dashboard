@@ -97,13 +97,6 @@ body{background:var(--cream);color:var(--ink);font-family:var(--font-body);font-
   position:sticky;top:60px;z-index:400;
 }
 .filter-label{font-size:11px;color:var(--stone2);margin-right:4px;font-weight:500;letter-spacing:0.04em}
-.fpill{
-  font-size:11px;padding:4px 12px;border-radius:20px;
-  border:1px solid var(--cream3);color:var(--ink3);background:transparent;
-  cursor:pointer;font-family:var(--font-body);transition:all 0.15s;font-weight:400;
-}
-.fpill:hover{border-color:var(--amber);color:var(--amber)}
-.fpill.active{background:var(--amber-pale2);border-color:var(--amber);color:var(--amber)}
 .sort-select{
   margin-left:auto;background:#fff;border:1px solid var(--cream3);
   border-radius:var(--radius);color:var(--ink2);font-family:var(--font-body);
@@ -461,14 +454,11 @@ input[type=range]{flex:1;accent-color:var(--amber);height:4px;cursor:pointer}
 <!-- FILTER BAR -->
 <div class="filter-bar">
   <span class="filter-label">Filter</span>
-  <button class="fpill active" onclick="setFilter('all',this)">All</button>
-  <button class="fpill" onclick="setFilter('saved',this)">Saved</button>
-  <button class="fpill" onclick="setFilter('grandma_home',this)">🏠 Grandma</button>
-  <button class="fpill" onclick="setFilter('adu_potential',this)">🚗 ADU</button>
-  <button class="fpill" onclick="setFilter('basement_bonus',this)">🏚 Basement</button>
-  <button class="fpill" onclick="setFilter('weird_property',this)">✨ Weird</button>
-  <button class="fpill" onclick="setFilter('uninhabitable',this)">⚠️ Uninhabitable</button>
-  <button class="fpill" onclick="setFilter('multi_family',this)">👨‍👩‍👧 Multi-family</button>
+  <select class="sort-select" style="margin-left:0">
+    <option>Option 1</option>
+    <option>Option 2</option>
+    <option>Option 3</option>
+  </select>
   <select class="sort-select" onchange="setSort(this.value)">
     <option value="score">Sort: AI Score ↓</option>
     <option value="price_asc">Sort: Price ↑</option>
@@ -482,12 +472,6 @@ input[type=range]{flex:1;accent-color:var(--amber);height:4px;cursor:pointer}
 <div class="map-section">
   <div class="map-header">
     <div class="map-title">Property Map — Denver Metro &amp; Mountain Communities</div>
-    <div class="map-legend">
-      <div class="legend-item"><div class="legend-dot" style="background:#2d6a4a"></div>Score 8–10</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#b8721a"></div>Score 5–7</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#8b2e2e"></div>Score 1–4</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#2a4a7a;opacity:0.5"></div>Dismissed</div>
-    </div>
   </div>
   <div id="map-wrap">
     <div class="map-empty" id="map-empty">
@@ -693,8 +677,8 @@ function updateMap() {
   });
   located.forEach(p => {
     if (markers[p.id]) { map.removeLayer(markers[p.id]); }
-    const color = p.status==='dismissed' ? '#94a3b8' : scoreBg(p.score);
-    const size = p.status==='saved' ? 16 : 12;
+    const color = '#1a1714';
+    const size = 10;
     const icon = L.divIcon({
       className: '',
       html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.25);cursor:pointer"></div>`,
@@ -702,10 +686,7 @@ function updateMap() {
     });
     const shortAddr = (p.address||'').split(',')[0];
     const popup = `<div class="map-popup">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between">
-        <div class="popup-addr">${shortAddr}</div>
-        <div class="popup-score" style="background:${color}">${p.score}</div>
-      </div>
+      <div class="popup-addr">${shortAddr}</div>
       <div class="popup-meta">
         <span>${p.price||'—'}</span>
         <span>${p.sqft||'—'} sqft</span>
@@ -882,11 +863,6 @@ function render() {
   setTimeout(renderRadials, 0);
 }
 
-function setFilter(f, el) {
-  filter=f;
-  document.querySelectorAll('.fpill').forEach(p=>p.classList.remove('active'));
-  el.classList.add('active'); render();
-}
 function setSort(v) { sort=v; render(); }
 function setStatus(id, s) {
   const p=props.find(x=>x.id===id); if(!p) return;
