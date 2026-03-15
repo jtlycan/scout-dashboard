@@ -597,6 +597,14 @@ function cardHTML(p) {
           }">${p.neighborhood_trajectory==='rising'?'↑ Rising':p.neighborhood_trajectory==='softening'?'↓ Softening':'→ Stable'}</span>
           ${p.trajectory_note?`<span style="font-size:10px;color:var(--ink3);font-style:italic;">${p.trajectory_note}</span>`:''}
         </div>`:''}
+        ${p.reno_tier?`<div style="display:inline-flex;align-items:center;gap:6px;margin-bottom:6px;">
+          <span style="padding:2px 8px;border-radius:4px;font-weight:600;font-size:10px;${
+            p.reno_tier==='light'?'background:#e8f4ed;color:#2d6a4a;':
+            p.reno_tier==='heavy'?'background:#f4e8e8;color:#8b2e2e;':
+            'background:#fdf3e3;color:#b8721a;'
+          }">Reno: ${p.reno_tier.charAt(0).toUpperCase()+p.reno_tier.slice(1)}</span>
+          ${p.reno_low&&p.reno_high?`<span style="font-size:10px;font-weight:500;color:var(--ink);">$${p.reno_low.toLocaleString()} – $${p.reno_high.toLocaleString()}</span>`:''}
+        </div><br>`:''}
         ${p.reasoning}</div>`:''}
       <textarea class="note-input" rows="2" placeholder="Add notes — visit observations, follow-up ideas..." onchange="saveNote('${p.id}',this.value)">${p.notes||''}</textarea>
       <div class="card-actions">
@@ -733,7 +741,14 @@ function radialValue(price, sqft) {
   return Math.round(10 - ((r - 0.75) / 0.40) * 8);
 }
 
-function radialTraj(traj) {
+function radialReno(tier) {
+  if (!tier) return null;
+  // light = low cost = high score (more affordable = better for strategy)
+  if (tier === 'light') return 9;
+  if (tier === 'medium') return 6;
+  if (tier === 'heavy') return 3;
+  return null;
+}
   if (!traj) return null;
   if (traj === 'rising') return 10;
   if (traj === 'stable') return 6;
@@ -831,7 +846,7 @@ function radialLegendHTML(p) {
   const scores = [
     radialSizeFit(p.sqft),
     radialValue(p.price, p.sqft),
-    null,
+    radialReno(p.reno_tier),
     radialTraj(p.neighborhood_trajectory),
     null,
   ];
@@ -1023,6 +1038,16 @@ function showResultPreview(d) {
         }">${d.neighborhood_trajectory==='rising'?'↑ Rising':d.neighborhood_trajectory==='softening'?'↓ Softening':'→ Stable'}</span>
         ${d.trajectory_note ? `<span style="color:var(--ink3);font-style:italic;">${d.trajectory_note}</span>` : ''}
       </div>` : ''}
+      ${d.reno_tier ? `<div style="display:flex;align-items:center;gap:8px;font-size:11px;">
+        <span style="font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:0.06em;">Reno estimate</span>
+        <span style="padding:2px 8px;border-radius:4px;font-weight:600;font-size:10px;${
+          d.reno_tier==='light' ? 'background:#e8f4ed;color:#2d6a4a;' :
+          d.reno_tier==='heavy' ? 'background:#f4e8e8;color:#8b2e2e;' :
+          'background:#fdf3e3;color:#b8721a;'
+        }">${d.reno_tier.charAt(0).toUpperCase()+d.reno_tier.slice(1)}</span>
+        ${d.reno_low && d.reno_high ? `<span style="font-weight:500;color:var(--ink);">$${d.reno_low.toLocaleString()} – $${d.reno_high.toLocaleString()}</span>` : ''}
+      </div>
+      ${d.reno_note ? `<div style="font-size:11px;color:var(--ink3);font-style:italic;padding-left:2px;">${d.reno_note}</div>` : ''}` : ''}
       <div class="rcp-reasoning">${d.reasoning||''}</div>
       <div style="font-size:11px;color:var(--ink3);margin-top:6px;text-align:right;">Analysis cost: <b style="color:var(--ink)">$${(d._cost||0).toFixed(4)}</b></div>
     </div>
@@ -1057,6 +1082,10 @@ async function confirmAddProperty() {
     reasoning: _analyzedData.reasoning,
     neighborhood_trajectory: _analyzedData.neighborhood_trajectory || null,
     trajectory_note: _analyzedData.trajectory_note || null,
+    reno_tier: _analyzedData.reno_tier || null,
+    reno_low: _analyzedData.reno_low || null,
+    reno_high: _analyzedData.reno_high || null,
+    reno_note: _analyzedData.reno_note || null,
     notes,
   };
   await savePropToDb(newProp);
