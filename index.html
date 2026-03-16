@@ -354,8 +354,7 @@ input[type=range]{flex:1;accent-color:var(--amber);height:4px;cursor:pointer}
 .rl-row{display:flex;align-items:center;gap:7px;font-size:11px}
 .rl-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
 .rl-name{flex:1;color:var(--ink3)}
-.rl-val{font-weight:500;color:var(--ink);min-width:28px;text-align:right}
-::-webkit-scrollbar-thumb:hover{background:var(--stone)}
+.rl-val{font-weight:500;color:var(--ink);min-width:28px;text-align:right}::-webkit-scrollbar-thumb:hover{background:var(--stone)}
 </style>
 </head>
 <body>
@@ -829,33 +828,50 @@ function drawRadial(canvasId, scores) {
   ctx.stroke();
 }
 
-function renderRadials() {
-  props.forEach(p => {
-    const scores = [
-      radialSizeFit(p.sqft),
-      radialValue(p.price, p.sqft),
-      null,
-      radialTraj(p.neighborhood_trajectory),
-      null,
-    ];
-    drawRadial('radial-' + p.id, scores);
+// Weights: Value 30%, Reno 30%, Size 15%, Neighborhood 12.5%, Special sauce 12.5%
+const WEIGHTS = [0.15, 0.30, 0.30, 0.125, 0.125];
+
+function weightedScore(scores) {
+  let total = 0, weightSum = 0;
+  scores.forEach((s, i) => {
+    if (s !== null) { total += s * WEIGHTS[i]; weightSum += WEIGHTS[i]; }
   });
+  if (!weightSum) return null;
+  return Math.round(total / weightSum * 10) / 10;
 }
 
-function radialLegendHTML(p) {
-  const scores = [
+function getRadialScores(p) {
+  return [
     radialSizeFit(p.sqft),
     radialValue(p.price, p.sqft),
     radialReno(p.reno_tier),
     radialTraj(p.neighborhood_trajectory),
     null,
   ];
+}
+
+function renderRadials() {
+  props.forEach(p => {
+    drawRadial('radial-' + p.id, getRadialScores(p));
+  });
+}
+
+function radialLegendHTML(p) {
+  const scores = getRadialScores(p);
+  const ws = weightedScore(scores);
   return `<div class="radial-legend">${RCATS.map((cat,i) => `
     <div class="rl-row">
       <div class="rl-dot" style="background:${cat.color}"></div>
       <div class="rl-name">${cat.name}</div>
+      <div style="font-size:10px;color:var(--stone2);text-align:right;min-width:28px">${Math.round(WEIGHTS[i]*100)}%</div>
       <div class="rl-val">${scores[i]===null?'—':scores[i]+'/10'}</div>
-    </div>`).join('')}</div>`;
+    </div>`).join('')}
+  <div class="rl-row" style="border-top:1px solid var(--cream3);margin-top:4px;padding-top:4px;">
+    <div class="rl-dot" style="background:var(--amber)"></div>
+    <div class="rl-name" style="font-weight:500;color:var(--ink)">Weighted score</div>
+    <div style="min-width:28px"></div>
+    <div class="rl-val" style="color:var(--amber)">${ws !== null ? ws+'/10' : '—'}</div>
+  </div></div>`;
 }
 
 function radialHTML(p) {
