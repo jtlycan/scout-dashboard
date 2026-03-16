@@ -191,6 +191,7 @@ body{background:var(--cream);color:var(--ink);font-family:var(--font-body);font-
 .tw{background:var(--amber-pale);color:var(--amber);border:1px solid rgba(184,114,26,0.2);cursor:help}
 .tu{background:var(--red-pale);color:var(--red);border:1px solid rgba(139,46,46,0.2)}
 .tmf{background:var(--teal-pale);color:var(--teal);border:1px solid rgba(26,90,106,0.2)}
+.tdom{background:#fdf3e3;color:#92540a;border:1px solid rgba(146,84,10,0.2);font-weight:600}
 .wtip{
   display:none;position:absolute;bottom:calc(100% + 8px);left:0;
   background:var(--ink);color:#fff;border-radius:var(--radius);
@@ -555,11 +556,15 @@ function tagHTML(p) {
     ['uninhabitable','tu','⚠️ Uninhabitable'],
     ['multi_family','tmf','👨‍👩‍👧 Multi-family'],
   ];
-  return (p.tags||[]).map(t => {
+  let html = (p.tags||[]).map(t => {
     const m = map.find(x => x[0]===t); if(!m) return '';
     const tip = (t==='weird_property' && p.weird_desc) ? `<span class="wtip">${p.weird_desc}</span>` : '';
     return `<span class="tag ${m[1]}">${m[2]}${tip}</span>`;
   }).join('');
+  if (p.dom != null && p.dom >= 75) {
+    html += `<span class="tag tdom">🕐 ${p.dom}d on market</span>`;
+  }
+  return html;
 }
 
 function cardHTML(p) {
@@ -568,11 +573,14 @@ function cardHTML(p) {
   const sl = p.status==='saved'?'✓ Saved':'Save', dl = p.status==='dismissed'?'✓ Dismissed':'Dismiss';
   const img = p.photo || noImg();
   const shortAddr = (p.address||'').split(',')[0];
+  const ws = weightedScore(getRadialScores(p));
+  const displayScore = ws !== null ? ws : p.score;
+  const badgeCls = displayScore >= 8 ? 'sh' : displayScore >= 5 ? 'sm' : 'sl';
   return `<div class="card ${sc}" id="card-${p.id}">
     <div class="card-img-wrap">
       <img class="card-img" src="${img}" onerror="this.src='${noImg()}'" loading="lazy"/>
       <div class="card-img-overlay"></div>
-      <div class="score-badge ${scoreCls(p.score)}">${p.score}</div>
+      <div class="score-badge ${badgeCls}">${displayScore !== null ? displayScore : '—'}</div>
       <div class="card-img-addr">${shortAddr}</div>
     </div>
     <div class="card-body">
@@ -587,7 +595,8 @@ function cardHTML(p) {
       </div>
       <div class="tags">${tagHTML(p)}</div>
       ${radialHTML(p)}
-      ${p.reasoning?`<div class="ai-block"><div class="ai-lbl">AI Analysis</div>
+      ${p.reasoning?`<div class="ai-block">
+        <div class="ai-lbl">Scouting Report ${p.score ? `<span style="font-weight:400;color:var(--amber);font-size:9px;margin-left:6px;">AI score: ${p.score}/10</span>` : ''}</div>
         ${p.neighborhood_trajectory?`<div style="display:inline-flex;align-items:center;gap:6px;margin-bottom:6px;">
           <span style="padding:2px 8px;border-radius:4px;font-weight:600;font-size:10px;${
             p.neighborhood_trajectory==='rising'?'background:#e8f4ed;color:#2d6a4a;':
@@ -640,13 +649,12 @@ function updateStats() {
   const adu = props.filter(p=>(p.tags||[]).includes('adu_potential')).length;
   const scores = props.map(p=>p.score).filter(Boolean);
   const avg = scores.length ? (scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1) : '—';
-  const topProp = props.filter(p=>p.score).sort((a,b)=>b.score-a.score)[0];
+  const scoredProps = props.map(p => ({ p, ws: weightedScore(getRadialScores(p)) })).filter(x => x.ws !== null);
+  const topEntry = scoredProps.sort((a,b) => b.ws - a.ws)[0];
   document.getElementById('s-total').textContent = total;
-
   document.getElementById('s-saved').textContent = saved;
-
-  document.getElementById('s-top').textContent = topProp ? topProp.score : '—';
-  document.getElementById('s-top-addr').textContent = topProp ? (topProp.address||'').split(',')[0] : 'No properties yet';
+  document.getElementById('s-top').textContent = topEntry ? topEntry.ws : '—';
+  document.getElementById('s-top-addr').textContent = topEntry ? (topEntry.p.address||'').split(',')[0] : 'No properties yet';
   document.getElementById('grid-count').textContent = '';
   const totalCost = parseFloat(localStorage.getItem('scout_total_cost') || '0');
   document.getElementById('s-cost').textContent = '$' + totalCost.toFixed(4);
@@ -727,17 +735,21 @@ function radialSizeFit(sqft) {
   if (!sqft) return null;
   const n = parseFloat(String(sqft).replace(/[^0-9.]/g,''));
   if (!n) return null;
-  return Math.max(0, Math.round(10 - Math.abs(n - 1500) / 150));
+  // Sweet spot is 1400-1800 sqft — anything in range scores 10
+  // Below 1400: penalize more steeply (too small for rental appeal)
+  // Above 1800: penalize more gently (bigger = more work but better rental)
+  if (n >= 1400 && n <= 1800) return 10;
+  if (n < 1400) return Math.max(0, Math.round(10 - (1400 - n) / 100));
+  return Math.max(0, Math.round(10 - (n - 1800) / 150));
 }
 
-function radialValue(price, sqft) {
+function radialValue(price, sqft, compPsf) {
   if (!price || !sqft) return null;
   const p = parseFloat(String(price).replace(/[^0-9.]/g,''));
   const s = parseFloat(String(sqft).replace(/[^0-9.]/g,''));
   if (!p || !s) return null;
   const psf = p / s;
-  // Use $320/sqft as Denver metro baseline comp
-  const comp = 320;
+  const comp = compPsf || 320; // use neighborhood comp if available, fallback to metro avg
   const r = psf / comp;
   if (r <= 0.75) return 10;
   if (r >= 1.15) return 2;
@@ -847,7 +859,7 @@ function weightedScore(scores) {
 function getRadialScores(p) {
   return [
     radialSizeFit(p.sqft),
-    radialValue(p.price, p.sqft),
+    radialValue(p.price, p.sqft, p.comp_psf),
     radialReno(p.reno_tier),
     radialTraj(p.neighborhood_trajectory),
     p.special_sauce_score || null,
@@ -1113,6 +1125,7 @@ async function confirmAddProperty() {
     reno_note: _analyzedData.reno_note || null,
     special_sauce_score: _analyzedData.special_sauce_score || null,
     special_sauce_note: _analyzedData.special_sauce_note || null,
+    comp_psf: _analyzedData.comp_psf || null,
     notes,
   };
   await savePropToDb(newProp);
