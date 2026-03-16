@@ -96,6 +96,10 @@ body{background:var(--cream);color:var(--ink);font-family:var(--font-body);font-
   padding:10px 32px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;
   position:sticky;top:60px;z-index:400;
 }
+.view-tabs{display:flex;gap:4px;margin-left:auto}
+.vtab{background:transparent;border:1px solid var(--cream3);border-radius:var(--radius);font-family:var(--font-body);font-size:11px;color:var(--ink3);padding:5px 14px;cursor:pointer;transition:all 0.15s;}
+.vtab:hover{border-color:var(--amber);color:var(--amber)}
+.vtab.active{background:var(--ink);color:#fff;border-color:var(--ink)}
 .filter-label{font-size:11px;color:var(--stone2);margin-right:4px;font-weight:500;letter-spacing:0.04em}
 .sort-select{
   margin-left:auto;background:#fff;border:1px solid var(--cream3);
@@ -111,18 +115,9 @@ body{background:var(--cream);color:var(--ink);font-family:var(--font-body);font-
 .vtbtn.active{background:var(--ink);color:#fff;border-color:var(--ink)}
 
 /* ── MAP ── */
-.map-section{background:#fff;border-bottom:1px solid var(--cream3)}
-.map-header{
-  padding:12px 32px;display:flex;align-items:center;justify-content:space-between;
-  border-bottom:1px solid var(--cream2);
-}
-.map-title{font-size:11px;color:var(--ink3);font-weight:500;text-transform:uppercase;letter-spacing:0.08em}
-.map-legend{display:flex;gap:14px;align-items:center}
-.legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--ink3)}
-.legend-dot{width:10px;height:10px;border-radius:50%;border:2px solid rgba(0,0,0,0.15)}
-#map{height:340px;width:100%}
+#map{height:calc(100vh - 120px);width:100%}
 .map-empty{
-  height:340px;display:flex;align-items:center;justify-content:center;
+  height:calc(100vh - 120px);display:flex;align-items:center;justify-content:center;
   flex-direction:column;gap:10px;color:var(--stone2);background:var(--cream2);
 }
 .map-empty-icon{font-size:32px;opacity:0.4}
@@ -466,13 +461,25 @@ input[type=range]{flex:1;accent-color:var(--amber);height:4px;cursor:pointer}
     <option value="newest">Sort: Newest</option>
     <option value="dom">Sort: Days on market</option>
   </select>
+  <div class="view-tabs">
+    <button class="vtab active" id="tab-properties" onclick="switchTab('properties')">Properties</button>
+    <button class="vtab" id="tab-map" onclick="switchTab('map')">Map</button>
+  </div>
 </div>
 
-<!-- MAP -->
-<div class="map-section">
-  <div class="map-header">
-    <div class="map-title">Property Map — Denver Metro &amp; Mountain Communities</div>
+<!-- PROPERTIES VIEW -->
+<div id="view-properties">
+  <div class="grid-section">
+    <div class="grid-header">
+      <div class="grid-title">Properties</div>
+      <div class="grid-count" id="grid-count"></div>
+    </div>
+    <div class="grid" id="grid"></div>
   </div>
+</div>
+
+<!-- MAP VIEW -->
+<div id="view-map" style="display:none">
   <div id="map-wrap">
     <div class="map-empty" id="map-empty">
       <div class="map-empty-icon">📍</div>
@@ -480,15 +487,6 @@ input[type=range]{flex:1;accent-color:var(--amber);height:4px;cursor:pointer}
     </div>
     <div id="map" style="display:none"></div>
   </div>
-</div>
-
-<!-- GRID -->
-<div class="grid-section">
-  <div class="grid-header">
-    <div class="grid-title">Properties</div>
-    <div class="grid-count" id="grid-count"></div>
-  </div>
-  <div class="grid" id="grid"></div>
 </div>
 
 <script>
@@ -596,7 +594,7 @@ function cardHTML(p) {
       <div class="tags">${tagHTML(p)}</div>
       ${radialHTML(p)}
       ${p.reasoning?`<div class="ai-block">
-        <div class="ai-lbl">Scouting Report ${p.score ? `<span style="font-weight:400;color:var(--amber);font-size:9px;margin-left:6px;">AI score: ${p.score}/10</span>` : ''}</div>
+        <div class="ai-lbl">Scouting Report ${p.score ? `<span style="font-weight:400;color:var(--amber);font-size:9px;margin-left:6px;">${p.score}/10</span>` : ''}</div>
         ${p.neighborhood_trajectory?`<div style="display:inline-flex;align-items:center;gap:6px;margin-bottom:6px;">
           <span style="padding:2px 8px;border-radius:4px;font-weight:600;font-size:10px;${
             p.neighborhood_trajectory==='rising'?'background:#e8f4ed;color:#2d6a4a;':
@@ -908,6 +906,16 @@ function render() {
   }
   g.innerHTML = list.map(cardHTML).join('');
   setTimeout(renderRadials, 0);
+}
+
+function switchTab(tab) {
+  document.getElementById('view-properties').style.display = tab === 'properties' ? 'block' : 'none';
+  document.getElementById('view-map').style.display = tab === 'map' ? 'block' : 'none';
+  document.getElementById('tab-properties').classList.toggle('active', tab === 'properties');
+  document.getElementById('tab-map').classList.toggle('active', tab === 'map');
+  if (tab === 'map' && map) {
+    setTimeout(() => map.invalidateSize(), 50);
+  }
 }
 
 function setSort(v) { sort=v; render(); }
