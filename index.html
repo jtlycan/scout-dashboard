@@ -604,6 +604,10 @@ function cardHTML(p) {
           }">Reno: ${p.reno_tier.charAt(0).toUpperCase()+p.reno_tier.slice(1)}</span>
           ${p.reno_low&&p.reno_high?`<span style="font-size:10px;font-weight:500;color:var(--ink);">$${p.reno_low.toLocaleString()} – $${p.reno_high.toLocaleString()}</span>`:''}
         </div><br>`:''}
+        ${p.special_sauce_score?`<div style="display:inline-flex;align-items:center;gap:6px;margin-bottom:6px;">
+          <span style="padding:2px 8px;border-radius:4px;font-weight:600;font-size:10px;background:#f0ebf8;color:#5a3a7a;">✨ Special sauce: ${p.special_sauce_score}/10</span>
+          ${p.special_sauce_note?`<span style="font-size:10px;color:var(--ink3);font-style:italic;">${p.special_sauce_note}</span>`:''}
+        </div><br>`:''}
         ${p.reasoning}</div>`:''}
       <textarea class="note-input" rows="2" placeholder="Add notes — visit observations, follow-up ideas..." onchange="saveNote('${p.id}',this.value)">${p.notes||''}</textarea>
       <div class="card-actions">
@@ -846,7 +850,7 @@ function getRadialScores(p) {
     radialValue(p.price, p.sqft),
     radialReno(p.reno_tier),
     radialTraj(p.neighborhood_trajectory),
-    null,
+    p.special_sauce_score || null,
   ];
 }
 
@@ -1064,6 +1068,11 @@ function showResultPreview(d) {
         ${d.reno_low && d.reno_high ? `<span style="font-weight:500;color:var(--ink);">$${d.reno_low.toLocaleString()} – $${d.reno_high.toLocaleString()}</span>` : ''}
       </div>
       ${d.reno_note ? `<div style="font-size:11px;color:var(--ink3);font-style:italic;padding-left:2px;">${d.reno_note}</div>` : ''}` : ''}
+      ${d.special_sauce_score ? `<div style="display:flex;align-items:center;gap:8px;font-size:11px;">
+        <span style="font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:0.06em;">Special sauce</span>
+        <span style="padding:2px 8px;border-radius:4px;font-weight:600;font-size:10px;background:#f0ebf8;color:#5a3a7a;">${d.special_sauce_score}/10</span>
+        ${d.special_sauce_note ? `<span style="color:var(--ink3);font-style:italic;">${d.special_sauce_note}</span>` : ''}
+      </div>` : ''}
       <div class="rcp-reasoning">${d.reasoning||''}</div>
       <div style="font-size:11px;color:var(--ink3);margin-top:6px;text-align:right;">Analysis cost: <b style="color:var(--ink)">$${(d._cost||0).toFixed(4)}</b></div>
     </div>
@@ -1102,6 +1111,8 @@ async function confirmAddProperty() {
     reno_low: _analyzedData.reno_low || null,
     reno_high: _analyzedData.reno_high || null,
     reno_note: _analyzedData.reno_note || null,
+    special_sauce_score: _analyzedData.special_sauce_score || null,
+    special_sauce_note: _analyzedData.special_sauce_note || null,
     notes,
   };
   await savePropToDb(newProp);
