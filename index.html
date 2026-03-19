@@ -1331,7 +1331,7 @@ function printReport(id) {
     const flagColW = CW / 2 - 4;
     let col = 0, leftY = y, rightY = y;
     tier.flags.forEach(flag => {
-      const ix = col === 0 ? ML : ML + CW/2 + 4;
+      let ix = col === 0 ? ML : ML + CW/2 + 4;
       let iy = col === 0 ? leftY : rightY;
       // System badge
       const sysColors = {
