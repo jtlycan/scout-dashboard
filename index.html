@@ -7,6 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;1,400&family=Geologica:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -268,6 +269,7 @@ body{background:var(--cream);color:var(--ink);font-family:var(--font-body);font-
 .abtn.edit:hover{color:var(--amber);border-color:var(--amber)}
 .abtn.del{max-width:34px;color:var(--stone2)}
 .abtn.del:hover{color:var(--red);border-color:var(--red);background:var(--red-pale)}
+.abtn.print:hover{color:var(--navy,#2a4a7a);border-color:var(--navy,#2a4a7a);background:#f0f4fa}
 .alink{
   background:#fff;border:1px solid var(--cream3);border-radius:var(--radius);
   color:var(--ink3);font-family:var(--font-body);font-size:11px;font-weight:500;
@@ -633,6 +635,7 @@ function cardHTML(p) {
       <div class="card-meta">
         <div class="mi"><div class="ml">Price</div><div class="mv">${p.price||'—'}</div>${p.price_history?`<div class="pc">↓ ${p.price_history}</div>`:''}</div>
         <div class="mi"><div class="ml">Sqft</div><div class="mv">${p.sqft||'—'}</div></div>
+        <div class="mi"><div class="ml">Built</div><div class="mv">${p.year_built||'—'}</div></div>
         <div class="mi"><div class="ml">Days listed</div><div class="mv">${p.dom!=null?p.dom:'—'}</div></div>
       </div>
       <div class="tags">${tagHTML(p)}</div>
@@ -691,6 +694,7 @@ function cardHTML(p) {
         <button class="abtn dismiss ${don}" onclick="setStatus('${p.id}','dismissed')">${dl}</button>
         ${p.url?`<a class="alink" href="${p.url}" target="_blank">View ↗</a>`:''}
         <button class="abtn edit" onclick="openEdit('${p.id}')">Edit</button>
+        <button class="abtn print" onclick="printReport('${p.id}')" title="Print Scouting Report">⎙ Report</button>
         <button class="abtn del" onclick="deleteProp('${p.id}')" title="Remove">✕</button>
       </div>
     </div>
@@ -963,6 +967,529 @@ function radialLegendHTML(p) {
 function radialHTML(p) {
   return `<div class="radial-wrap"><canvas id="radial-${p.id}" width="180" height="180"></canvas></div>
   ${radialLegendHTML(p)}`;
+}
+
+// ── PRINT REPORT ──
+function printReport(id) {
+  const p = props.find(x => x.id === id);
+  if (!p) return;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+  const PW = 612, PH = 792;
+  const ML = 40, MR = 40, MT = 40;
+  const CW = PW - ML - MR; // 532pt content width
+
+  // ── Colors ──
+  const INK    = [26,23,20];
+  const STONE  = [107,99,88];
+  const AMBER  = [184,114,26];
+  const AMBLT  = [253,243,227];
+  const AMBDK  = [65,36,2];
+  const GREEN  = [45,106,74];
+  const GRNLT  = [232,244,237];
+  const GRNTX  = [39,80,10];
+  const PURPLE = [90,58,122];
+  const PURLT  = [240,235,248];
+  const PURTX  = [60,52,137];
+  const REDLT  = [252,232,232];
+  const REDTX  = [139,46,46];
+  const REDDOT = [192,57,43];
+  const BORDER = [224,220,212];
+  const CREAM  = [250,248,244];
+  const CREAM2 = [240,237,230];
+  const CREAM3 = [238,235,228];
+  const NAVY   = [42,74,122];
+  const GRAY   = [136,135,128];
+  const WHITE  = [255,255,255];
+
+  function setFill(c) { doc.setFillColor(...c); }
+  function setStroke(c) { doc.setDrawColor(...c); }
+  function setTxt(c) { doc.setTextColor(...c); }
+  function setFont(style, size) { doc.setFont('helvetica', style); doc.setFontSize(size); }
+  function rect(x,y,w,h,c) { setFill(c); doc.rect(x,y,w,h,'F'); }
+  function line(x1,y1,x2,y2,c,lw=0.5) { setStroke(c); doc.setLineWidth(lw); doc.line(x1,y1,x2,y2); }
+  function txt(text, x, y, opts={}) {
+    const { align='left', color=INK, size=9, style='normal', maxWidth } = opts;
+    setFont(style, size);
+    setTxt(color);
+    if (maxWidth) { doc.text(String(text), x, y, { align, maxWidth }); }
+    else { doc.text(String(text), x, y, { align }); }
+  }
+  function pill(label, x, y, tc, bg, pw=45) {
+    rect(x, y-8, pw, 12, bg);
+    txt(label, x + pw/2, y, { align:'center', color:tc, size:7, style:'bold' });
+  }
+
+  // ── Derived data ──
+  const ws = weightedScore(getRadialScores(p));
+  const addr0 = (p.address||'').split(',')[0];
+  const addrRest = (p.address||'').split(',').slice(1).join(',').trim();
+  const renoTier = p.reno_tier ? p.reno_tier.charAt(0).toUpperCase()+p.reno_tier.slice(1) : '—';
+  const renoRange = (p.reno_low && p.reno_high) ? `$${p.reno_low.toLocaleString()} – $${p.reno_high.toLocaleString()}` : '—';
+  const dateStr = new Date(p.added).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+
+  // ── PAGE 1 ──
+
+  // Masthead
+  setFont('bold', 18);
+  setTxt(INK);
+  doc.text('Scout', ML, MT + 16);
+  setFont('bold', 7.5);
+  setTxt(STONE);
+  doc.text('PROPERTY INTELLIGENCE REPORT', ML, MT + 27);
+  const rightTxt = `${p.address||''}\nGenerated ${dateStr}`;
+  setFont('normal', 9);
+  setTxt(STONE);
+  doc.text(rightTxt, PW - MR, MT + 16, { align:'right' });
+  line(ML, MT + 34, PW - MR, MT + 34, INK, 1.5);
+
+  let y = MT + 46;
+
+  // Headline
+  const headline = `${(p.sqft||'?')}-sqft ${renoTier.toLowerCase()} cosmetic candidate at $${p.comp_psf||'—'}/sqft`;
+  setFont('bold', 15);
+  setTxt(INK);
+  const headLines = doc.splitTextToSize(headline, CW);
+  doc.text(headLines, ML, y);
+  y += headLines.length * 19 + 4;
+  const deck = p.reasoning ? p.reasoning.substring(0, 160) + (p.reasoning.length > 160 ? '...' : '') : 'No analysis available.';
+  setFont('normal', 10);
+  setTxt(STONE);
+  const deckLines = doc.splitTextToSize(deck, CW);
+  doc.text(deckLines, ML, y);
+  y += deckLines.length * 14 + 8;
+  line(ML, y, PW - MR, y, BORDER);
+  y += 1;
+
+  // Data strip
+  const ds = [
+    ['PRICE', p.price||'—', '$'+((p.comp_psf||0)+'/sqft')],
+    ['SQFT', p.sqft||'—', 'Listed sqft'],
+    ['BEDS / BATHS', '4 / 2', 'Split-level'],
+    ['RENO TIER', renoTier, renoRange],
+    ['TRAJECTORY', (p.neighborhood_trajectory||'—').charAt(0).toUpperCase()+(p.neighborhood_trajectory||'').slice(1), p.trajectory_note ? p.trajectory_note.substring(0,20)+'…' : ''],
+    ['SCOUT SCORE', ws !== null ? String(ws) : (p.score||'—'), 'Weighted'],
+  ];
+  const colW = CW / 6;
+  const dsH = 38;
+  ds.forEach((col, i) => {
+    const cx = ML + i * colW;
+    rect(cx, y, colW, dsH, i === 5 ? INK : WHITE);
+    line(cx + colW, y, cx + colW, y + dsH, BORDER);
+    const tc = i === 5 ? WHITE : INK;
+    const sc = i === 5 ? GRAY : STONE;
+    txt(col[0], cx + colW/2, y + 9, { align:'center', color:sc, size:6.5, style:'bold' });
+    txt(col[1], cx + colW/2, y + 22, { align:'center', color:tc, size:12, style:'bold' });
+    txt(col[2].substring(0,14), cx + colW/2, y + 32, { align:'center', color:sc, size:7 });
+  });
+  line(ML, y, PW-MR, y, BORDER);
+  line(ML, y+dsH, PW-MR, y+dsH, BORDER);
+  y += dsH + 10;
+
+  // Two columns
+  const colLeft = ML, colRight = ML + CW/2 + 6;
+  const colInner = CW/2 - 6;
+  let yL = y, yR = y;
+
+  function secHead(label, x, yy, w) {
+    setFont('bold', 7.5); setTxt(STONE);
+    doc.text(label, x, yy);
+    line(x, yy+3, x+w, yy+3, BORDER);
+    return yy + 10;
+  }
+
+  // LEFT col — scouting report
+  yL = secHead('SCOUTING REPORT', colLeft, yL, colInner);
+  setFont('normal', 9.5); setTxt(STONE);
+  const aiLines = doc.splitTextToSize(p.reasoning||'No analysis.', colInner);
+  doc.text(aiLines, colLeft, yL);
+  yL += aiLines.length * 13 + 10;
+
+  // Special sauce
+  yL = secHead('SPECIAL SAUCE  ' + (p.special_sauce_score||'—') + '/10', colLeft, yL, colInner);
+  if (p.special_sauce_note) {
+    setFont('normal', 9); setTxt(PURPLE);
+    const ssLines = doc.splitTextToSize(p.special_sauce_note, colInner);
+    doc.text(ssLines, colLeft, yL);
+    yL += ssLines.length * 13 + 10;
+  }
+
+  // Neighborhood
+  yL = secHead('NEIGHBORHOOD', colLeft, yL, colInner);
+  const trajTxt = `${(p.neighborhood_trajectory||'').charAt(0).toUpperCase()+(p.neighborhood_trajectory||'').slice(1)}  —  ${p.trajectory_note||''}`;
+  setFont('normal', 9); setTxt(STONE);
+  const trajLines = doc.splitTextToSize(trajTxt, colInner);
+  doc.text(trajLines, colLeft, yL);
+  yL += trajLines.length * 13 + 10;
+
+  // Scorecard
+  yL = secHead('SCORECARD', colLeft, yL, colInner);
+  const scoreData = [
+    ['Size fit',     '15%', getRadialScores(p)[0], '#2a4a7a'],
+    ['Value',        '30%', getRadialScores(p)[1], '#2d6a4a'],
+    ['Reno est.',    '30%', getRadialScores(p)[2], '#888780'],
+    ['Neighborhood', '12.5%', getRadialScores(p)[3], '#b8721a'],
+    ['Special sauce','12.5%', p.special_sauce_score, '#5a3a7a'],
+  ];
+  const barMaxW = 65;
+  scoreData.forEach(([name, pct, score, hexC]) => {
+    setFont('normal', 9); setTxt(INK);
+    doc.text(name, colLeft, yL);
+    setFont('normal', 8); setTxt(STONE);
+    doc.text(pct, colLeft + 95, yL, { align:'right' });
+    // bar track
+    rect(colLeft + 100, yL - 6, barMaxW, 5, CREAM3);
+    // bar fill
+    if (score !== null) {
+      const fillW = barMaxW * (score / 10);
+      const rc = hexC.replace('#','');
+      const r = parseInt(rc.slice(0,2),16), g = parseInt(rc.slice(2,4),16), b = parseInt(rc.slice(4,6),16);
+      rect(colLeft + 100, yL - 6, fillW, 5, [r,g,b]);
+    }
+    setFont('bold', 9); setTxt(INK);
+    doc.text(score !== null ? score+'/10' : '—', colLeft + colInner, yL, { align:'right' });
+    line(colLeft, yL+3, colLeft+colInner, yL+3, BORDER);
+    yL += 14;
+  });
+  // Weighted score bar
+  rect(colLeft, yL+2, colInner, 16, AMBLT);
+  setFont('bold', 9.5); setTxt(AMBDK);
+  doc.text('Weighted score', colLeft + 8, yL + 13);
+  setFont('bold', 11); setTxt(AMBER);
+  doc.text(ws !== null ? ws+' / 10' : '—', colLeft + colInner - 6, yL + 13, { align:'right' });
+  yL += 26;
+
+  // RIGHT col — renovation breakdown
+  yR = secHead('RENOVATION BREAKDOWN', colRight, yR, colInner);
+  setFont('bold', 9); setTxt(AMBER);
+  doc.text(renoTier + ' renovation', colRight, yR);
+  yR += 13;
+  setFont('bold', 13); setTxt(AMBDK);
+  doc.text(renoRange + ' estimated total', colRight, yR);
+  yR += 16;
+
+  const renoItems = [
+    ['Interior paint',    'Full house ~'+(p.sqft||'?')+' sqft', 'High',   '$700–$1,000'],
+    ['Flooring (LVP)',    'Replace carpet throughout',           'High',   '$3,500–$4,800'],
+    ['Lighting fixtures', 'Kitchen, dining, bedrooms',           'Medium', '$600–$1,200'],
+    ['Kitchen refresh',   'Appliances, hardware, cabinets',      'Medium', '$1,500–$3,000'],
+    ['Bathroom refresh',  '2 baths, fixtures + vanity',          'Medium', '$800–$2,000'],
+    ['Exterior + garage', 'Trim, entry, garage door',            'Low',    '$500–$1,200'],
+    ['Misc supplies',     'Hardware, transitions, tools',         '—',     '$1,400–$2,200'],
+  ];
+  // Adjust if reno_note exists
+  renoItems.forEach(([name, scope, roi, cost]) => {
+    setFont('bold', 9); setTxt(INK); doc.text(name, colRight, yR);
+    setFont('normal', 7.5); setTxt(STONE); doc.text(scope, colRight, yR+9);
+    // ROI pill
+    const roiColors = { High:[GRNTX,GRNLT], Medium:[AMBDK,AMBLT], Low:[STONE,CREAM2], '—':[STONE,CREAM2] };
+    const [rtc, rbg] = roiColors[roi]||[STONE,CREAM2];
+    pill(roi, colRight + 130, yR+2, rtc, rbg, 36);
+    setFont('bold', 9); setTxt(INK);
+    doc.text(cost, colRight + colInner, yR, { align:'right' });
+    line(colRight, yR+12, colRight+colInner, yR+12, BORDER);
+    yR += 22;
+  });
+  // Total
+  line(colRight, yR, colRight+colInner, yR, BORDER, 0.5);
+  yR += 4;
+  setFont('bold', 10); setTxt(INK); doc.text('Total estimate', colRight, yR+8);
+  setFont('bold', 12); setTxt(AMBER); doc.text(renoRange, colRight+colInner, yR+8, { align:'right' });
+  yR += 18;
+
+  // Separator between columns
+  const maxY = Math.max(yL, yR);
+  line(ML + CW/2, y - 2, ML + CW/2, maxY, BORDER);
+
+  // ── ERA KNOWLEDGE ENGINE ──
+  const yr = parseInt(p.year_built) || 0;
+
+  // Returns tier flags based on build year: { dealBreakers[], budgetItems[], manageable[] }
+  function getEraFlags(year) {
+    const db = []; // deal-breakers
+    const bi = []; // budget items
+    const mg = []; // manageable
+
+    // ── PLUMBING FLAGS ──
+    if (year < 1970) {
+      db.push({ sys:'PLUMBING', label:'Galvanized steel supply pipes', detail:'Interior corrosion reduces flow to trickle over decades. Discolored water + low pressure = confirm and budget replumb. Full replumb: $4,000–$10,000.' });
+    }
+    if (year >= 1978 && year <= 1995) {
+      db.push({ sys:'PLUMBING', label:'Polybutylene pipe (PB) — CRITICAL', detail:'Grey plastic stamped "PB2110". Chlorine in city water degrades it from inside — no visible warning before burst. Full replacement mandatory: $4,000–$10,000. Check under sinks, at water heater, at main entry.' });
+    }
+    if (year < 1986) {
+      bi.push({ sys:'PLUMBING', label:'Lead service line possible', detail:'Pre-1986 construction may have lead supply pipe from street to meter. Denver actively replacing — confirm with water utility.' });
+    }
+    if (year < 1980) {
+      bi.push({ sys:'PLUMBING', label:'Cast iron drain lines', detail:'50+ year old cast iron may be cracked, root-invaded, or bellied. Sewer scope strongly recommended: $150–$300. Replacement if collapsed: $5,000–$15,000.' });
+    } else {
+      bi.push({ sys:'PLUMBING', label:'Sewer scope recommended', detail:'Tree roots, bellies, and offset joints are common regardless of era. $150–$300 inspection is highest-ROI pre-offer step on any pre-2000 home.' });
+    }
+    bi.push({ sys:'PLUMBING', label:'Water heater age', detail:'Replace if 10+ years old. Budget $800–$1,500. Check age on data plate (month/year code). Also confirm TP relief valve, seismic straps, proper flue.' });
+    mg.push({ sys:'PLUMBING', label:'GFCI protection', detail:'Required in kitchen, baths, garage, exterior for rental occupancy. Likely absent in pre-2000 construction. DIY install: $15–$30 per outlet.' });
+
+    // ── ELECTRICAL FLAGS ──
+    if (year >= 1950 && year <= 1985) {
+      db.push({ sys:'ELECTRICAL', label:'Federal Pacific Stab-Lok or Zinsco panel', detail:'Dominant in Denver metro 1950s–1985. FPE breakers failed to trip in 51% of independent tests. Zinsco breakers weld to bus bar — circuit cannot shut off. Full replacement required: $2,000–$4,000. Check panel label immediately.' });
+    }
+    if (year >= 1965 && year <= 1973) {
+      db.push({ sys:'ELECTRICAL', label:'Aluminum branch circuit wiring', detail:'Fire risk at every connection point (outlets, switches, junctions) as aluminum oxide blocks current and causes heating. Remediation: AlumiConn connectors at all connections ($2,000–$4,000) or full rewire ($8,000–$15,000). Most insurers flag this.' });
+    }
+    if (year < 1990) {
+      bi.push({ sys:'ELECTRICAL', label:'Undersized service panel', detail:'60-amp or 100-amp service is insufficient for modern HVAC, EV charging, and appliances. Upgrade to 200-amp: $1,500–$4,000. Check amperage on main breaker.' });
+    }
+    if (year < 1945) {
+      db.push({ sys:'ELECTRICAL', label:'Knob-and-tube wiring', detail:'Cannot be insulated over (fire hazard), incompatible with modern loads, uninsurable. Full rewire required: $8,000–$15,000+.' });
+    }
+    mg.push({ sys:'ELECTRICAL', label:'Ungrounded two-prong outlets', detail:'Common throughout pre-1990 homes. Cannot be used for modern appliances safely. GFCI outlets can substitute without rewiring for ~$15–$30 each.' });
+
+    // ── HAZARDOUS MATERIALS FLAGS ──
+    if (year < 1990) {
+      db.push({ sys:'HAZMAT', label:'Asbestos in HVAC duct wrap', detail:'Grey fibrous insulation wrap on ductwork and mechanical equipment in basements. Cannot be confirmed visually — test before any HVAC work ($30–$60/sample). Professional abatement required: $2,000–$15,000. Do NOT disturb.' });
+    }
+    if (year >= 1950 && year <= 1985) {
+      db.push({ sys:'HAZMAT', label:'Popcorn ceiling texture — asbestos likely', detail:'Spray-on texture common 1950s–1985 has high asbestos probability. Test before any ceiling work. If positive: encapsulation (paint over, ~$0.75/sqft) or professional removal ($2–$7/sqft). Do NOT sand or scrape.' });
+      bi.push({ sys:'HAZMAT', label:'Vinyl floor tile adhesive (black mastic)', detail:'Common under carpet and newer flooring. Asbestos-containing. Do not grind or sand. Encapsulate with new flooring over top, or professional abatement. Test first: $30–$60.' });
+    }
+    if (year < 1978) {
+      bi.push({ sys:'HAZMAT', label:'Lead paint on all painted surfaces', detail:'Assume present everywhere pre-1978. Safe if intact — do NOT sand. Encapsulate with bonding primer where disturbing. Test with $30 swab kit before any work. RRP-certified contractor required for full abatement.' });
+    } else if (year < 1990) {
+      mg.push({ sys:'HAZMAT', label:'Lead paint possible on older layers', detail:'Post-1978 but pre-1990 homes may have lead in earlier paint layers under renovation. Test trim and windows especially before sanding.' });
+    }
+    if (year >= 1950 && year <= 1979) {
+      bi.push({ sys:'HAZMAT', label:'PCBs in fluorescent light ballasts + caulking', detail:'Banned 1979 but present in older ballasts and window/door caulking. Replace any original fluorescent fixtures and old caulking around windows. Dispose as hazardous waste.' });
+    }
+    if (year < 1992) {
+      bi.push({ sys:'HAZMAT', label:'Mercury thermostats', detail:'Round Honeywell dial thermostats pre-1992 likely contain mercury. Do not break or throw in trash. Take to hazardous waste facility. Budget $0 but note for demo.' });
+    }
+    mg.push({ sys:'HAZMAT', label:'Radon — Colorado mandatory test', detail:'Front Range is highest-risk zone nationally. Test every property, no exceptions. $150–$300 test. Mitigation system if needed: $800–$1,500. Highly effective.' });
+    mg.push({ sys:'HAZMAT', label:'Silica dust during demo', detail:'Any grinding of tile, concrete, or stucco releases silica. N95 minimum — P100 respirator recommended. Risk is cumulative; DIY renovators doing multiple projects face elevated exposure.' });
+
+    // ── STRUCTURAL FLAGS ──
+    db.push({ sys:'STRUCTURAL', label:'Load-bearing wall identification before any demo', detail:'Walls perpendicular to joists, walls directly above basement walls, and center-of-house walls are suspect. $300–$600 structural engineer consult before opening any wall. Non-negotiable for your open-concept renovation plans.' });
+    if (year < 2000) {
+      bi.push({ sys:'STRUCTURAL', label:'Roof age and hail damage', detail:'Denver averages multiple significant hail events per decade. Hail damage is invisible from ground — requires walking roof or drone. Insurance may deny claim if not reported within coverage year. $250 roof inspection pre-offer. Replacement: $8,000–$18,000.' });
+    }
+    bi.push({ sys:'STRUCTURAL', label:'Foundation cracking — distinguish cosmetic vs. active', detail:'Hairline cracks (<1/8") = normal settlement. Stair-step cracks in brick = active movement, get engineer eval. Horizontal cracks in basement walls = serious lateral pressure ($15,000–$50,000). Floor/wall separation = likely foam-jackable in Colorado context ($8,000–$12,000).' });
+    bi.push({ sys:'STRUCTURAL', label:'Grading and drainage', detail:'Negative grade (ground sloping toward house) is near-universal in older Colorado homes. Every inch drives water toward foundation. Check: mulch beds against foundation, downspouts terminating within 3ft, water staining on foundation. DIY fix: $200–$800.' });
+    bi.push({ sys:'STRUCTURAL', label:'Crawl space / basement moisture', detail:'Bentonite clay soil creates cyclical moisture pressure. Look for: efflorescence (white mineral deposits), prior waterproofing repairs, musty odor, wood rot on sill plates. Vapor barrier correction: $1,000–$4,000. Interior drain tile system: $5,000–$15,000.' });
+    if (year >= 1985 && year <= 2000) {
+      db.push({ sys:'STRUCTURAL', label:'EIFS / synthetic stucco siding', detail:'Exterior Insulation and Finish Systems trap moisture behind them, silently rotting structural sheathing and framing. Visually pristine outside, potentially catastrophic behind. Probe test: push awl into siding — if it sinks, there\'s rot. Professional remediation: $10,000–$40,000+.' });
+    }
+
+    // ── SYSTEMS FLAGS ──
+    if (year < 2000) {
+      bi.push({ sys:'SYSTEMS', label:'HVAC age — expect replacement', detail:'Furnaces 25+ years and AC units 15+ years are at end of life. For a pre-2000 home, budget replacement as a known cost not a surprise. Furnace: $3,000–$6,000. Central AC: $3,000–$6,000. Pre-2010 AC units use R-22 refrigerant (phased out 2020) — any leak = automatic replacement.' });
+    }
+    bi.push({ sys:'SYSTEMS', label:'Attic insulation', detail:'Pre-2000 homes typically have R-19 to R-30 insulation where current code requires R-49 to R-60. Blown-in insulation is high-ROI DIY: rental equipment $40/day, materials $500–$1,000. Directly affects tenant comfort and utility costs.' });
+    if (year < 1993) {
+      mg.push({ sys:'SYSTEMS', label:'Garage door auto-reverse safety', detail:'Required since 1993. Any pre-1993 garage door opener lacks auto-reverse — liability issue for rental. Replacement opener: $150–$300 DIY.' });
+    }
+    if (year < 2000) {
+      mg.push({ sys:'SYSTEMS', label:'Single-pane or aluminum-frame windows', detail:'Rental-grade issue — tenant comfort complaints, high energy costs, condensation mold at frames. Budget $300–$800 per window for replacement. Not a safety issue but affects rental appeal significantly.' });
+    }
+    bi.push({ sys:'SYSTEMS', label:'Hail history lookup', detail:'Run hailhistory.com on this address before offering. A property that took a major hail event with unreported/unrepaired damage has a known insurance and structural liability.' });
+
+    return { db, bi, mg };
+  }
+
+  const eraFlags = getEraFlags(yr);
+  const allFlags = [...eraFlags.db, ...eraFlags.bi, ...eraFlags.mg];
+
+  // ── PAGE 2: INSPECTION ──
+  doc.addPage();
+  y = MT;
+
+  // Header bar
+  rect(ML, y, CW, 28, INK);
+  setFont('bold', 10); setTxt(WHITE);
+  doc.text(`INSPECTION CHECKLIST  ·  ${p.address||''}`, ML + 8, y + 18);
+  const yearBuilt = p.year_built || '—';
+  setFont('normal', 8.5); setTxt([170,170,170]);
+  doc.text(`Built ${yearBuilt}  ·  Scout Property Intelligence`, PW - MR - 8, y + 18, { align:'right' });
+  y += 36;
+
+  // ── SECTION 1: TIERED FLAGS ──
+  setFont('bold', 7.5); setTxt(STONE);
+  doc.text('TIERED FLAGS — ERA-SPECIFIC RISKS FOR BUILD YEAR ' + yearBuilt, ML, y);
+  line(ML, y+3, PW-MR, y+3, BORDER, 0.5);
+  y += 12;
+
+  const tierGroups = [
+    { label: 'DEAL-BREAKERS  —  Get pro quote before offering', color: REDDOT, bg: REDLT, tc: REDTX, flags: eraFlags.db },
+    { label: 'BUDGET ITEMS  —  Price into your renovation estimate', color: AMBER, bg: AMBLT, tc: AMBDK, flags: eraFlags.bi },
+    { label: 'MANAGEABLE  —  DIY with care', color: GREEN, bg: GRNLT, tc: GRNTX, flags: eraFlags.mg },
+  ];
+
+  tierGroups.forEach(tier => {
+    if (!tier.flags.length) return;
+    // Tier header
+    rect(ML, y, CW, 14, tier.bg);
+    setFont('bold', 8); setTxt(tier.tc);
+    doc.text(tier.label, ML + 6, y + 10);
+    y += 16;
+
+    // Flags in two columns
+    const flagColW = CW / 2 - 4;
+    let col = 0, leftY = y, rightY = y;
+    tier.flags.forEach(flag => {
+      const ix = col === 0 ? ML : ML + CW/2 + 4;
+      let iy = col === 0 ? leftY : rightY;
+      // System badge
+      const sysColors = {
+        PLUMBING: [[42,74,122],[230,240,248]],
+        ELECTRICAL: [[139,46,46],[252,232,232]],
+        HAZMAT: [[65,36,2],[253,243,227]],
+        STRUCTURAL: [[26,23,20],[240,237,230]],
+        SYSTEMS: [[90,58,122],[240,235,248]],
+      };
+      const [stc, sbg] = sysColors[flag.sys] || [[107,99,88],[240,237,230]];
+      rect(ix, iy - 1, 52, 10, sbg);
+      setFont('bold', 6.5); setTxt(stc);
+      doc.text(flag.sys, ix + 2, iy + 7);
+      // Label
+      setFont('bold', 8); setTxt(INK);
+      const labelLines = doc.splitTextToSize(flag.label, flagColW - 60);
+      doc.text(labelLines, ix + 56, iy + 7);
+      iy += Math.max(12, labelLines.length * 10) + 2;
+      // Detail
+      setFont('normal', 7.5); setTxt(STONE);
+      const detLines = doc.splitTextToSize(flag.detail, flagColW - 8);
+      doc.text(detLines, ix + 4, iy);
+      iy += detLines.length * 10 + 6;
+      line(ix, iy, ix + flagColW, iy, BORDER);
+      iy += 5;
+      if (col === 0) leftY = iy; else rightY = iy;
+      col = col === 0 ? 1 : 0;
+    });
+    y = Math.max(leftY, rightY) + 6;
+  });
+
+  // ── SECTION 2: SYSTEM-BY-SYSTEM CHECKLIST ──
+  // Check if we need a new page
+  if (y > PH - 200) { doc.addPage(); y = MT; }
+
+  setFont('bold', 7.5); setTxt(STONE);
+  doc.text('SYSTEM-BY-SYSTEM WALKTHROUGH CHECKLIST', ML, y);
+  line(ML, y+3, PW-MR, y+3, BORDER, 0.5);
+  y += 10;
+
+  const checkSections = [
+    { title: 'Foundation & Structure', items: [
+      'Walk perimeter — look for cracks, gaps at foundation top, negative grade toward house',
+      'Basement / crawl space — efflorescence, water staining, musty odor, prior waterproofing repairs',
+      'All doors and windows — sticking or binding indicates active foundation movement',
+      'Floors — bounce test (soft spots), uneven areas, visible settlement',
+      'Load-bearing walls — identify before any demo plan. Walls perpendicular to joists = suspect',
+      'Visible framing in attic/basement — look for notched joists, missing bridging, improper repairs',
+    ]},
+    { title: 'Roof & Exterior', items: [
+      'Roof shingles — missing, curling, granule loss in gutters, hail impact dents on flashing',
+      'Gutters and downspouts — secure, no rust, extend 4ft+ from foundation',
+      'Siding — probe any stucco or EIFS with awl. Soft = rot behind. Check all penetrations',
+      'Grading — soil slopes away from house? Mulch beds direct against foundation?',
+      'Windows and doors — single-pane? Failed seals (fogged glass)? Wood rot at frames?',
+      'Garage door — auto-reverse test: place 2x4 flat on ground, door should reverse on contact',
+    ]},
+    { title: 'Plumbing', items: [
+      'Identify pipe material: copper (good), PEX (good), grey plastic PB2110 (DEAL BREAKER), galvanized (budget)',
+      'Water pressure test — run multiple fixtures simultaneously. Low pressure = pipe corrosion',
+      'Under every sink — look for active leaks, staining, improper repairs, drain material',
+      'Water heater — check age on data plate, note fuel type, inspect for rust/sediment at base',
+      'Main drain cleanout location — ask age of any drain work. Sewer scope recommended',
+      'Exterior hose bibs — freeze-proof style? Proper slope?',
+    ]},
+    { title: 'Electrical', items: [
+      'Panel label — Federal Pacific (Stab-Lok), Zinsco, or Sylvania = DEAL BREAKER, must replace',
+      'Panel capacity — note amperage. 60A or 100A = budget upgrade to 200A',
+      'Wiring type — look for aluminum wiring: silver-colored at breaker connections, check 1965–1973 vintage',
+      'GFCI outlets — test all kitchen, bath, garage, exterior outlets with test button',
+      'Outlets — two-prong ungrounded throughout? Count and budget GFCI replacements',
+      'Smoke and CO detectors — present on every level? Working?',
+    ]},
+    { title: 'HVAC & Mechanical', items: [
+      'Furnace age and type — check data plate. 25+ years = budget replacement ($3,000–$6,000)',
+      'AC age — check data plate. 15+ years = budget replacement. Look for R-22 (phased out)',
+      'Duct condition — look for disconnected ducts in attic/crawl space, foil tape repairs, asbestos wrap',
+      'Combustion air — gas appliances need adequate makeup air. Sealed rooms = CO risk',
+      'Attic ventilation — proper intake (soffits) and exhaust (ridge)? Blocked by insulation?',
+      'Attic insulation depth — R-value? Blown-in, batts, or vermiculite (test if pre-1990)?',
+    ]},
+    { title: 'Hazardous Materials', items: [
+      'Popcorn ceilings — present? Test before any ceiling work if pre-1985 ($30–$60 sample)',
+      'Floor tile — vinyl tile pre-1985 likely has asbestos adhesive. Do NOT grind or sand',
+      'Basement duct/pipe wrap — grey fibrous material = likely asbestos, test before HVAC work',
+      'Lead paint test — use $30 swab kit on trim and windows before any sanding',
+      'Radon test — schedule 48-hr test. Every Colorado home, no exceptions',
+      'Mercury thermostat — round dial Honeywell? Note for proper disposal',
+    ]},
+    { title: 'Cosmetic Scope Assessment', items: [
+      'Flooring — carpet condition/odor, hardwood salvageable?, tile cracked/loose?',
+      'Walls and ceilings — texture type, damage, water staining, prior repairs',
+      'Kitchen — cabinet condition, appliance age, countertop material, ventilation',
+      'Bathrooms (each) — tile condition, caulk/grout integrity, fixture age, exhaust fan',
+      'Paint — condition, sheen, odor (pet/smoke?), note rooms needing full repaint',
+      'Lighting — fixture age and style, note replacements needed for rental grade',
+    ]},
+  ];
+
+  const ckColW = CW / 2 - 4;
+  checkSections.forEach((sec, si) => {
+    if (y > PH - 120) { doc.addPage(); y = MT; }
+    // Section header
+    rect(ML, y, CW, 14, CREAM2);
+    setFont('bold', 8); setTxt(INK);
+    doc.text(sec.title.toUpperCase(), ML + 6, y + 10);
+    y += 16;
+
+    let col = 0, leftY = y, rightY = y;
+    sec.items.forEach(item => {
+      const ix = col === 0 ? ML : ML + CW/2 + 4;
+      let iy = col === 0 ? leftY : rightY;
+      // Checkbox square
+      doc.rect(ix + 2, iy - 7, 7, 7);
+      setFont('normal', 8); setTxt(INK);
+      const cLines = doc.splitTextToSize(item, ckColW - 16);
+      doc.text(cLines, ix + 14, iy);
+      iy += cLines.length * 11 + 3;
+      line(ix, iy, ix + ckColW, iy, BORDER);
+      iy += 4;
+      if (col === 0) leftY = iy; else rightY = iy;
+      col = col === 0 ? 1 : 0;
+    });
+    y = Math.max(leftY, rightY) + 8;
+  });
+
+  // ── ON-SITE NOTES ──
+  if (y > PH - 120) { doc.addPage(); y = MT; }
+  setFont('bold', 7.5); setTxt(STONE);
+  doc.text('ON-SITE NOTES', ML, y);
+  line(ML, y+3, PW-MR, y+3, BORDER);
+  y += 12;
+  setFont('normal', 9); setTxt(STONE);
+  doc.text('Visited: ________________________________     With: ________________________________', ML, y);
+  y += 14;
+
+  const noteLabels = ['General observations','Red flags found','Reno scope update','Next steps'];
+  const nColW = CW / 4;
+  const notesH = Math.min(PH - y - MR, 120);
+  noteLabels.forEach((lbl, i) => {
+    const nx = ML + i * nColW;
+    rect(nx, y, nColW, notesH, CREAM);
+    line(nx, y, nx, y + notesH, BORDER);
+    setFont('bold', 7.5); setTxt(STONE);
+    doc.text(lbl, nx + 6, y + 11);
+    for (let li = 0; li < 5; li++) {
+      line(nx + 4, y + 24 + li*18, nx + nColW - 4, y + 24 + li*18, BORDER);
+    }
+  });
+  line(PW - MR, y, PW - MR, y + notesH, BORDER);
+  line(ML, y, PW - MR, y, BORDER);
+  line(ML, y + notesH, PW - MR, y + notesH, BORDER);
+
+  // Save
+  const filename = `scout-report-${(p.address||'property').replace(/[^a-z0-9]/gi,'-').toLowerCase()}.pdf`;
+  doc.save(filename);
 }
 
 function render() {
@@ -1240,6 +1767,7 @@ async function confirmAddProperty() {
     special_sauce_score: _analyzedData.special_sauce_score || null,
     special_sauce_note: _analyzedData.special_sauce_note || null,
     comp_psf: _analyzedData.comp_psf || null,
+    year_built: _analyzedData.year_built || null,
     notes,
   };
   await savePropToDb(newProp);
